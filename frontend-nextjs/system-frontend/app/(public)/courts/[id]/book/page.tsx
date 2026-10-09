@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import BookingForm from "@/app/components/booking-form";
 import Container from "@/app/components/container";
-import { courts } from "@/app/data/courts";
+import { getCourtById } from "@/app/lib/courts-api";
+import { mapApiCourt } from "@/app/lib/court-mapper";
 
 type BookingPageProps = {
   params: Promise<{ id: string }>;
@@ -10,11 +11,13 @@ type BookingPageProps = {
 
 export default async function BookingPage({ params }: BookingPageProps) {
   const { id } = await params;
-  const court = courts.find((item) => item.id === id);
+  const apiCourt = await getCourtById(id);
 
-  if (!court) {
+  if (!apiCourt) {
     notFound();
   }
+
+  const court = mapApiCourt(apiCourt);
 
   return (
     <main className="flex-1 pb-16 sm:pb-20">

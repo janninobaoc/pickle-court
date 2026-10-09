@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import Button from "@/app/components/button";
 import Container from "@/app/components/container";
 import CourtImage from "@/app/components/court-image";
-import { courts } from "@/app/data/courts";
+import { getCourtById } from "@/app/lib/courts-api";
+import { mapApiCourt } from "@/app/lib/court-mapper";
 import { formatPeso } from "@/app/lib/booking-utils";
 
 type CourtDetailsPageProps = {
@@ -12,9 +13,13 @@ type CourtDetailsPageProps = {
 
 export default async function CourtDetailsPage({ params }: CourtDetailsPageProps) {
   const { id } = await params;
-  const court = courts.find((item) => item.id === id);
+  const apiCourt = await getCourtById(id);
 
-  if (!court) notFound();
+  if (!apiCourt) {
+    notFound();
+  }
+
+  const court = mapApiCourt(apiCourt);
 
   return (
     <main className="flex-1 pb-16 sm:pb-20">

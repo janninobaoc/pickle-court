@@ -9,6 +9,7 @@ use App\Services\CourtService;
 use Symfony\Component\HttpFoundation\File\Exception\NoTmpDirFileException;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 
 class CourtController extends Controller
@@ -29,30 +30,30 @@ class CourtController extends Controller
                 $courts,
                 Response::HTTP_OK
             );
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
+        } catch (\Throwable $e) {
+            report($e);
 
             return response()->json([
-                'error' => $errorMessage
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
     }
     public function show(int $id)
     {
         try {
             $court = $this->courtService->getCourtById($id);
-
-            if (!$court) {
-                return response()->json(['message' => 'Court not found'], Response::HTTP_NOT_FOUND);
-            }
-
             return response()->json($court, Response::HTTP_OK);
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Court not found.'
+            ], 404);
+
+        } catch (\Throwable $e) {
+            report($e);
 
             return response()->json([
-                'error' => $errorMessage
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
     }
     public function store(CourtRequest $request)
@@ -73,12 +74,12 @@ class CourtController extends Controller
                     'message' => 'Court creation failed'
                 ], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
+        } catch (\Throwable $e) {
+            report($e);
 
             return response()->json([
-                'error' => $errorMessage
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
     }
     public function update(CourtRequest $request, Court $court)
@@ -93,12 +94,12 @@ class CourtController extends Controller
                 'message' => 'Court updated successfully',
                 'data' => $court
             ], Response::HTTP_OK);
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
+        } catch (\Throwable $e) {
+            report($e);
 
             return response()->json([
-                'error' => $errorMessage
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
     }
     public function destroy(int $id)
@@ -110,13 +111,18 @@ class CourtController extends Controller
 
             return response()->json([
                 'message' => 'Court deleted succesfully'
-                ]);
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Court not found.'
+            ], 404);
+
+        } catch (\Throwable $e) {
+            report($e);
 
             return response()->json([
-                'error' => $errorMessage
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
     }
 }

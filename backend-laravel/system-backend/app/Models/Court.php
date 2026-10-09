@@ -14,7 +14,23 @@ class Court extends Model
         'description',
         'hourly_rate',
         'status',
+        'location',
+        'amenities',
+        'opening_time',
+        'closing_time',
+        'operating_days',
+        'image',
     ];
+
+
+    protected function casts(): array
+    {
+        return [
+            'amenities' => 'array',
+            'operating_days' => 'array',
+        ];
+    }
+
 
     public function bookings()
     {

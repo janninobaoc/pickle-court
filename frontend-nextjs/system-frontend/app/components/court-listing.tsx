@@ -139,7 +139,10 @@ export default function CourtListing({ courts }: { courts: Court[] }) {
             Showing {filteredCourts.length} {filteredCourts.length === 1 ? "court" : "courts"}
           </p>
         </div>
-        <p className="text-xs leading-5 text-muted">Availability is sample data for demonstration only.</p>
+        <p>
+          Court status reflects whether a court is available for booking.
+          Time-slot availability is not yet verified against existing reservations.
+        </p>
       </div>
 
       {filteredCourts.length > 0 ? (
