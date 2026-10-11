@@ -23,26 +23,14 @@ class BookingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_id' => 'required|integer|exists:users,id',
             'court_id' => 'required|integer|exists:courts,id',
-            'booking_date' => 'required|date',
+            'booking_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'start_time' => 'required|date_format:H:i:s',
             'end_time' => [
                 'required',
                 'date_format:H:i:s',
                 'after:start_time',
             ],
-            // 'start_time' => [
-            //     'required',
-            //     'date_format:H:i:s',
-            //     'after_or_equal:08:00:00',
-            // ],
-            // 'end_time' => [
-            //     'required',
-            //     'date_format:H:i:s',
-            //     'after:start_time',
-            //     'before_or_equal:22:00:00',
-            // ],
         ];
     }
 }

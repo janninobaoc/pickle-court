@@ -1,41 +1,102 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import Button from "./button";
 import { AuthInput, PasswordInput } from "./auth-input";
+import { useRouter } from "next/navigation";
+import {
+  AuthApiError,
+  login,
+  type LoginPayload,
+  type ValidationErrors,
+} from "@/app/lib/auth-api";
+import { useAuth } from "@/contexts/auth-context";
+import { toast } from "sonner";
 
 const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginForm() {
+  const router = useRouter();
+  const { setAuthenticatedUser } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiErrors, setApiErrors] = useState<ValidationErrors>({});
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  // const [rememberMe, setRememberMe] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [demoMessage, setDemoMessage] = useState("");
 
-  const emailError = submitted
-    ? !email.trim()
-      ? "Email is required."
-      : !validEmail.test(email.trim())
-        ? "Enter a valid email address."
-        : ""
-    : "";
-  const passwordError = submitted && !password ? "Password is required." : "";
+  const emailError =
+    (submitted
+      ? !email.trim()
+        ? "Email is required."
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+          ? "Enter a valid email address."
+          : ""
+      : "") ||
+    apiErrors.email?.[0] ||
+    "";
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const passwordError =
+    (submitted && !password
+      ? "Password is required."
+      : "") ||
+    apiErrors.password?.[0] ||
+    "";
+
+
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
     setSubmitted(true);
-    setDemoMessage("");
+    setApiErrors({});
 
-    if (!email.trim() || !validEmail.test(email.trim()) || !password) return;
+    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    setDemoMessage("Demo only: authentication is not connected yet. No login details were saved and no session was created.");
-    setEmail("");
-    setPassword("");
-    setRememberMe(false);
-    setSubmitted(false);
-  }
+    if (!validEmail.test(email.trim()) || !password) {
+      return;
+    }
+
+    const payload: LoginPayload = {
+      email: email.trim(),
+      password,
+    };
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await login(payload);
+
+      setAuthenticatedUser(response.user);
+      toast.success("Welcome back to PickleCourt!");
+
+      router.replace("/courts");
+      router.refresh();
+    } catch (error) {
+      if (error instanceof AuthApiError) {
+        if (error.status === 422) {
+          setApiErrors(error.errors);
+
+          if (Object.keys(error.errors).length === 0) {
+            toast.error(error.message || "Please check your login details.");
+          }
+        } else if (error.status === 401) {
+          toast.error("Invalid email or password.");
+        } else if (error.status === 419) {
+          toast.error("Your session expired. Please try again.");
+        } else {
+          toast.error("Login failed. Please try again.");
+        }
+      } else {
+        toast.error("Unable to connect. Please check your internet connection.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -46,7 +107,13 @@ export default function LoginForm() {
           placeholder="you@example.com"
           inputType="email"
           value={email}
-          onChange={(event) => { setEmail(event.target.value); setDemoMessage(""); }}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setApiErrors((previous) => ({
+              ...previous,
+              email: [],
+            }));
+          }}
           autoComplete="email"
           error={emailError}
         />
@@ -55,29 +122,20 @@ export default function LoginForm() {
           label="Password"
           placeholder="Enter your password"
           value={password}
-          onChange={(event) => { setPassword(event.target.value); setDemoMessage(""); }}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setApiErrors((previous) => ({
+              ...previous,
+              password: [],
+            }));
+          }}
           autoComplete="current-password"
           error={passwordError}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(event) => setRememberMe(event.target.checked)}
-              className="size-4 rounded border-border accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            />
-            <span className="text-foreground">Remember me</span>
-          </label>
-          <Link href="/forgot-password" className="rounded font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            Forgot password?
-          </Link>
-        </div>
-        <Button type="submit" className="w-full">Log In</Button>
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? "Logging in..." : "Log In"}
+        </Button>
       </form>
-      <div aria-live="polite" aria-atomic="true" className="mt-4">
-        {demoMessage && <p role="status" className="rounded-xl border border-primary/20 bg-[#f1f7e9] p-4 text-sm leading-6 text-primary">{demoMessage}</p>}
-      </div>
     </>
   );
 }

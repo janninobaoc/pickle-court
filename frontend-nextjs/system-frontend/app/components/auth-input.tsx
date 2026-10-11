@@ -44,9 +44,9 @@ export function AuthInput({
         aria-required="true"
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
-        className={`${inputStyles} mt-2`}
+        className={`${inputStyles} mt-2 ${error ? "border-[#DC2626] hover:border-[#DC2626] focus-visible:border-[#DC2626] focus-visible:ring-[#DC2626]/20" : ""}`}
       />
-      {error && <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-red-700">{error}</p>}
+      {error && <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-[#DC2626]">{error}</p>}
     </div>
   );
 }
@@ -79,7 +79,7 @@ export function PasswordInput({
           aria-required="true"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
-          className={`${inputStyles} pr-20`}
+          className={`${inputStyles} pr-20 ${error ? "border-[#DC2626] hover:border-[#DC2626] focus-visible:border-[#DC2626] focus-visible:ring-[#DC2626]/20" : ""}`}
         />
         <button
           type="button"
@@ -91,7 +91,7 @@ export function PasswordInput({
           {visible ? "Hide" : "Show"}
         </button>
       </div>
-      {error && <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-red-700">{error}</p>}
+      {error && <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-[#DC2626]">{error}</p>}
     </div>
   );
 }

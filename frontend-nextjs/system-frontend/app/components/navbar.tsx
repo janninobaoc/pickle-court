@@ -2,25 +2,31 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { AuthApiError, logout } from "@/app/lib/auth-api";
+import { useAuth } from "@/contexts/auth-context";
+import { toast } from "sonner";
 import Button from "./button";
 import Container from "./container";
 
-const navigation = [
-  { label: "Home", href: "/" },
-  { label: "My Bookings", href: "/bookings" },
-];
-
 function isRouteActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, status, clearAuthenticatedUser, refreshUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const profileControlRef = useRef<HTMLDivElement>(null);
+  const logoutPendingRef = useRef(false);
+  const retryPendingRef = useRef(false);
   const courtsActive = isRouteActive(pathname, "/courts");
 
   function closeMenu() {
@@ -32,6 +38,249 @@ export default function Navbar() {
       closeMenu();
       menuButtonRef.current?.focus();
     }
+  }
+
+  function handleProfileKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      setProfileOpen(false);
+      profileButtonRef.current?.focus();
+    }
+  }
+
+  useEffect(() => {
+    setProfileOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!profileOpen) {
+      return;
+    }
+
+    function handleOutsidePointer(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !profileControlRef.current?.contains(event.target)
+      ) {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointer);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointer);
+    };
+  }, [profileOpen]);
+
+  async function handleLogout() {
+    if (logoutPendingRef.current || status !== "authenticated" || !user) {
+      return;
+    }
+
+    logoutPendingRef.current = true;
+    setIsLoggingOut(true);
+
+    try {
+      await logout();
+      toast.success("You have been logged out successfully.");
+      clearAuthenticatedUser();
+      setProfileOpen(false);
+      closeMenu();
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      if (error instanceof AuthApiError && error.status === 419) {
+        toast.error("Your session expired. Please refresh and try again.");
+      } else if (error instanceof AuthApiError && error.status === 401) {
+        toast.error("Your session could not be verified. Please try again.");
+      } else if (error instanceof AuthApiError) {
+        toast.error("Logout failed. Please try again.");
+      } else {
+        toast.error("Unable to log out. Please check your connection and try again.");
+      }
+    } finally {
+      logoutPendingRef.current = false;
+      setIsLoggingOut(false);
+    }
+  }
+
+  async function handleRetry() {
+    if (retryPendingRef.current || status === "loading") {
+      return;
+    }
+
+    retryPendingRef.current = true;
+    setIsRetrying(true);
+
+    try {
+      await refreshUser();
+    } finally {
+      retryPendingRef.current = false;
+      setIsRetrying(false);
+    }
+  }
+
+  function renderExploreCourts(mobile = false) {
+    return (
+      <Button
+        href="/courts"
+        aria-current={courtsActive ? "page" : undefined}
+        className={`${mobile ? "mt-1 w-full" : "ml-1"} min-h-11 gap-2 rounded-xl bg-[#C5F277] px-4 text-sm font-bold text-[#164A41] shadow-sm hover:bg-[#d4f695] focus-visible:outline-[#164A41] ${courtsActive ? "ring-2 ring-[#164A41]/20" : ""}`}
+        onClick={mobile ? closeMenu : undefined}
+      >
+        Explore Courts
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+          <path d="M7 17 17 7M8 7h9v9" />
+        </svg>
+      </Button>
+    );
+  }
+
+  function renderGuestLinks(mobile = false) {
+    return (
+      <div className={mobile ? "grid grid-cols-2 gap-2" : "flex items-center gap-1"}>
+        <Link
+          href="/login"
+          aria-current={isRouteActive(pathname, "/login") ? "page" : undefined}
+          onClick={mobile ? closeMenu : undefined}
+          className={mobile
+            ? "inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#164A41]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]"
+            : `inline-flex min-h-10 items-center rounded-xl px-3 text-sm transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${isRouteActive(pathname, "/login") ? "font-semibold text-primary" : "font-medium text-muted"}`}
+        >
+          Log In
+        </Link>
+        <Link
+          href="/register"
+          aria-current={isRouteActive(pathname, "/register") ? "page" : undefined}
+          onClick={mobile ? closeMenu : undefined}
+          className={mobile
+            ? "inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#164A41]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]"
+            : `inline-flex min-h-10 items-center rounded-xl px-3 text-sm transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${isRouteActive(pathname, "/register") ? "font-semibold text-primary" : "font-medium text-muted"}`}
+        >
+          Register
+        </Link>
+      </div>
+    );
+  }
+
+  function renderProfileIcon() {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="size-5 shrink-0">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </svg>
+    );
+  }
+
+  function renderChevron() {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`size-4 transition-transform ${profileOpen ? "rotate-180" : ""}`}>
+        <path d="m5 7.5 5 5 5-5" />
+      </svg>
+    );
+  }
+
+  function renderProfileMenu(mobile = false) {
+    if (status === "authenticated" && user) {
+      if (mobile) {
+        return (
+          <div className="mt-2 border-t border-border pt-3">
+            <div className="mb-2 flex items-center gap-2 px-2 py-1 text-sm font-semibold text-[#164A41]">
+              {renderProfileIcon()}
+              <span className="truncate">{user.name}</span>
+            </div>
+            <Link
+              href="/bookings"
+              aria-current={isRouteActive(pathname, "/bookings") ? "page" : undefined}
+              onClick={closeMenu}
+              className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-[#1F2937] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41]"
+            >
+              My Bookings
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              aria-label={isLoggingOut ? "Logging out" : "Log out"}
+              className="mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <div ref={profileControlRef} onKeyDown={handleProfileKeyDown} className="relative">
+          <button
+            ref={profileButtonRef}
+            type="button"
+            aria-expanded={profileOpen}
+            aria-controls="desktop-profile-menu"
+            aria-label={`Profile menu for ${user.name}`}
+            onClick={() => setProfileOpen((open) => !open)}
+            className="inline-flex min-h-11 max-w-64 items-center gap-2 rounded-xl border border-[#164A41]/15 bg-white px-3 text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]"
+          >
+            {renderProfileIcon()}
+            <span className="max-w-36 truncate">{user.name}</span>
+            {renderChevron()}
+          </button>
+          <div
+            id="desktop-profile-menu"
+            hidden={!profileOpen}
+            className="absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl border border-[#164A41]/10 bg-white p-2 shadow-[0_14px_36px_rgba(22,74,65,0.16)]"
+          >
+              <Link
+                href="/bookings"
+                aria-current={isRouteActive(pathname, "/bookings") ? "page" : undefined}
+                onClick={() => setProfileOpen(false)}
+                className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-[#1F2937] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41]"
+              >
+                My Bookings
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                aria-label={isLoggingOut ? "Logging out" : "Log out"}
+                className="mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoggingOut ? "Logging out..." : "Logout"}
+              </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (status === "unauthenticated") {
+      return renderGuestLinks(mobile);
+    }
+
+    if (status === "error") {
+      return (
+        <div className={mobile ? "mt-2 border-t border-border pt-3" : "flex items-center gap-2"}>
+          <span role="status" aria-live="polite" className="text-xs text-[#1F2937]">
+            Unable to verify your session.
+          </span>
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="inline-flex min-h-9 items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-[#164A41] hover:bg-[#164A41]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRetrying ? "Checking..." : "Retry"}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <span role="status" aria-live="polite" className="inline-flex items-center gap-2 px-3 text-xs text-[#1F2937]">
+        <span aria-hidden="true" className="size-3 animate-pulse rounded-full bg-[#C5F277]" />
+        Checking session...
+      </span>
+    );
   }
 
   return (
@@ -51,47 +300,11 @@ export default function Navbar() {
             PickleCourt
           </Link>
 
-          <nav aria-label="Main navigation" className="hidden items-center gap-1 md:flex lg:gap-3">
-            {navigation.map((item) => {
-              const active = isRouteActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`relative rounded-lg px-3 py-2 text-sm transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:px-4 ${active ? "font-semibold text-primary before:absolute before:inset-x-3 before:-bottom-0.5 before:h-0.5 before:rounded-full before:bg-accent lg:before:inset-x-4" : "font-medium text-muted"}`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-
           <div className="hidden shrink-0 items-center gap-2 md:flex">
-            <Link
-              href="/login"
-              className={`inline-flex min-h-10 items-center rounded-xl px-3 text-sm transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${isRouteActive(pathname, "/login") ? "font-semibold text-primary" : "font-medium text-muted"}`}
-              aria-current={isRouteActive(pathname, "/login") ? "page" : undefined}
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className={`inline-flex min-h-10 items-center rounded-xl px-3 text-sm transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${isRouteActive(pathname, "/register") ? "font-semibold text-primary" : "font-medium text-muted"}`}
-              aria-current={isRouteActive(pathname, "/register") ? "page" : undefined}
-            >
-              Register
-            </Link>
-            <Button
-              href="/courts"
-              aria-current={courtsActive ? "page" : undefined}
-              className={`ml-1 min-h-11 gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-primary shadow-sm hover:bg-[#d4f695] focus-visible:outline-primary ${courtsActive ? "ring-2 ring-primary/20" : ""}`}
-            >
-              Explore Courts
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-                <path d="M7 17 17 7M8 7h9v9" />
-              </svg>
-            </Button>
+            {renderProfileMenu()}
+            <nav aria-label="Primary navigation">
+              {renderExploreCourts()}
+            </nav>
           </div>
 
           <button
@@ -120,52 +333,11 @@ export default function Navbar() {
             id="mobile-navigation"
             aria-label="Mobile navigation"
             onKeyDown={handleMenuKeyDown}
-            className="absolute left-4 right-4 top-[calc(100%+0.5rem)] rounded-2xl border border-border bg-white p-3 shadow-[0_14px_36px_rgba(22,74,65,0.14)] md:hidden"
+            className="absolute left-4 right-4 top-[calc(100%+0.5rem)] z-40 rounded-2xl border border-border bg-white p-3 shadow-[0_14px_36px_rgba(22,74,65,0.14)] md:hidden"
           >
             <div className="flex flex-col gap-1">
-              {navigation.map((item) => {
-                const active = isRouteActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={`min-h-11 rounded-xl px-3 py-3 text-sm transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary ${active ? "bg-[#f0f6e8] font-semibold text-primary" : "font-medium text-foreground"}`}
-                    onClick={closeMenu}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-3">
-                <Link
-                  href="/login"
-                  aria-current={isRouteActive(pathname, "/login") ? "page" : undefined}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"
-                  onClick={closeMenu}
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/register"
-                  aria-current={isRouteActive(pathname, "/register") ? "page" : undefined}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"
-                  onClick={closeMenu}
-                >
-                  Register
-                </Link>
-              </div>
-              <Button
-                href="/courts"
-                aria-current={courtsActive ? "page" : undefined}
-                className="mt-1 min-h-11 w-full gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-primary hover:bg-[#d4f695] focus-visible:outline-primary"
-                onClick={closeMenu}
-              >
-                Explore Courts
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-                  <path d="M7 17 17 7M8 7h9v9" />
-                </svg>
-              </Button>
+              {renderExploreCourts(true)}
+              {renderProfileMenu(true)}
             </div>
           </nav>
         )}

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CourtController;
 use App\Http\Controllers\BookingController;
 use Illuminate\Support\Facades\Route;
@@ -18,11 +19,28 @@ Route::middleware(['auth:sanctum', 'can:manage-courts'])->group(function () {
     });
 });
 
-Route::prefix('/bookings')->group(function () {
-    Route::get('/', [BookingController::class, 'index'])
-        ->name('bookings.index');
-    Route::get('/{id}', [BookingController::class, 'show'])
-        ->name('bookings.show');
-    Route::post('/', [BookingController::class, 'store'])
-        ->name('bookings.store');
+Route::middleware('auth:sanctum')->prefix('/bookings')->group(function () {
+    Route::get('/', [BookingController::class, 'index'])->name('bookings.index');
+    Route::get('/{id}', [BookingController::class, 'show'])->name('bookings.show');
+    Route::post('/', [BookingController::class, 'store'])->name('bookings.store');
+    Route::delete('/{id}', [BookingController::class, 'destroy'])->name('bookings.destroy');
+    Route::patch('/{id}/reschedule', [BookingController::class, 'reschedule'])->name('bookings.reschedule');
 });
+
+
+Route::middleware('throttle:6,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register'])
+        ->name('auth.register');
+
+    Route::post('/login', [AuthController::class, 'login'])
+        ->name('auth.login');
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])
+        ->name('auth.logout');
+
+    Route::get('/user', [AuthController::class, 'user'])
+        ->name('auth.user');
+});
+
