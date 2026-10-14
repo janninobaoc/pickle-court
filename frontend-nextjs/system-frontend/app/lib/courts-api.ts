@@ -36,9 +36,12 @@ export async function getCourts(): Promise<ApiCourt[]> {
         throw new Error(`Failed to fetch courts: ${response.status}`);
     }
 
-    const courts: ApiCourt[] = await response.json();
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+        throw new Error("Invalid courts response");
+    }
 
-    return courts;
+    return payload as ApiCourt[];
 }
 
 export async function getCourtById(id: string): Promise<ApiCourt | null> {

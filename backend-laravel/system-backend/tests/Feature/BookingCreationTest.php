@@ -38,6 +38,54 @@ class BookingCreationTest extends TestCase
         ]);
     }
 
+    public function test_booking_accepts_longer_durations_and_calculates_price_from_the_full_interval(): void
+    {
+        $user = User::factory()->create();
+
+        foreach ([
+            ['08:00:00', '09:00:00', '300.00'],
+            ['08:00:00', '08:30:00', '150.00'],
+            ['08:00:00', '10:00:00', '600.00'],
+            ['08:00:00', '12:00:00', '1200.00'],
+            ['08:00:00', '22:00:00', '4200.00'],
+        ] as [$start, $end, $amount]) {
+            $court = $this->makeBookableCourt();
+
+            $this->actingAs($user)
+                ->postJson('/api/bookings', $this->bookingData($court, [
+                    'start_time' => $start,
+                    'end_time' => $end,
+                ]))
+                ->assertCreated()
+                ->assertJsonPath('data.total_amount', (int) $amount);
+
+            $this->assertDatabaseHas('bookings', [
+                'court_id' => $court->id,
+                'booking_date' => self::BOOKING_DATE,
+                'start_time' => $start,
+                'end_time' => $end,
+                'total_amount' => $amount,
+            ]);
+        }
+    }
+
+    public function test_booking_conflict_in_the_middle_of_a_long_interval_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $court = $this->makeBookableCourt();
+        $this->createExistingBooking($court, $user, 'confirmed', [
+            'start_time' => '11:30:00',
+            'end_time' => '12:30:00',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/bookings', $this->bookingData($court, [
+                'start_time' => '09:00:00',
+                'end_time' => '14:00:00',
+            ]))
+            ->assertConflict();
+    }
+
     public function test_guest_cannot_create_a_booking(): void
     {
         $court = $this->makeBookableCourt();

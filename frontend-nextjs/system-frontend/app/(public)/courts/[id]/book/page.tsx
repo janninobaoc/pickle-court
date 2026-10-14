@@ -4,13 +4,15 @@ import BookingForm from "@/app/components/booking-form";
 import Container from "@/app/components/container";
 import { getCourtById } from "@/app/lib/courts-api";
 import { mapApiCourt } from "@/app/lib/court-mapper";
+import type { BookingSelectionParams } from "@/app/lib/booking-selection";
 
 type BookingPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ date?: string | string[]; start?: string | string[]; end?: string | string[] }>;
 };
 
-export default async function BookingPage({ params }: BookingPageProps) {
-  const { id } = await params;
+export default async function BookingPage({ params, searchParams }: BookingPageProps) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const apiCourt = await getCourtById(id);
 
   if (!apiCourt) {
@@ -18,6 +20,11 @@ export default async function BookingPage({ params }: BookingPageProps) {
   }
 
   const court = mapApiCourt(apiCourt);
+  const selectionParams: BookingSelectionParams = {
+    date: query.date,
+    start: query.start,
+    end: query.end,
+  };
 
   return (
     <main className="flex-1 pb-16 sm:pb-20">
@@ -40,7 +47,7 @@ export default async function BookingPage({ params }: BookingPageProps) {
             Choose your preferred schedule and review your booking details.
           </p>
         </div>
-        <BookingForm key={court.id} court={court} />
+        <BookingForm key={court.id} court={court} selectionParams={selectionParams} />
       </Container>
     </main>
   );

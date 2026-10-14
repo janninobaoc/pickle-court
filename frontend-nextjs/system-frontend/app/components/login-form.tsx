@@ -12,10 +12,11 @@ import {
 } from "@/app/lib/auth-api";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
+import { getSafeReturnTo } from "@/app/lib/auth-redirect";
 
 const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginForm() {
+export default function LoginForm({ returnTo }: { returnTo?: string }) {
   const router = useRouter();
   const { setAuthenticatedUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,7 +74,7 @@ export default function LoginForm() {
       setAuthenticatedUser(response.user);
       toast.success("Welcome back to PickleCourt!");
 
-      router.replace("/courts");
+      router.replace(getSafeReturnTo(returnTo));
       router.refresh();
     } catch (error) {
       if (error instanceof AuthApiError) {

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CourtRequest;
+use App\Http\Requests\CourtAvailabilityRequest;
 use App\Models\Court;
 use App\Services\CourtService;
+use App\Services\CourtAvailabilityService;
 use Symfony\Component\HttpFoundation\File\Exception\NoTmpDirFileException;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
@@ -15,10 +17,12 @@ use Illuminate\Http\JsonResponse;
 class CourtController extends Controller
 {
     protected CourtService $courtService;
+    protected CourtAvailabilityService $courtAvailabilityService;
 
-    public function __construct(CourtService $courtService)
+    public function __construct(CourtService $courtService, CourtAvailabilityService $courtAvailabilityService)
     {
         $this->courtService = $courtService;
+        $this->courtAvailabilityService = $courtAvailabilityService;
     }
 
     public function index(Request $request)
@@ -54,6 +58,26 @@ class CourtController extends Controller
             return response()->json([
                 'message' => 'An unexpected error occurred.'
             ], 500);
+        }
+    }
+
+    public function availability(int $id, CourtAvailabilityRequest $request)
+    {
+        try {
+            return response()->json([
+                'status' => Response::HTTP_OK,
+                'data' => $this->courtAvailabilityService->forDate($id, $request->validated('date')),
+            ], Response::HTTP_OK);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Court not found.',
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Unable to retrieve court availability.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
     public function store(CourtRequest $request)

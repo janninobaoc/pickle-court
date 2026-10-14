@@ -16,7 +16,10 @@ export default function CourtCard({ court, compact = false }: CourtCardProps) {
       <div className={compact ? "p-5 sm:p-6" : "flex flex-1 flex-col p-5 sm:p-6"}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className={compact ? "text-xs font-semibold uppercase tracking-[0.14em] text-primary/75" : "inline-flex min-h-7 items-center rounded-full bg-[#eff8dc] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-primary"}>{court.category}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={compact ? "text-xs font-semibold uppercase tracking-[0.14em] text-primary/75" : "inline-flex min-h-7 items-center rounded-full bg-[#eff8dc] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-primary"}>{court.category}</p>
+              {compact && court.available && <span className="rounded-full bg-[#edf7df] px-2.5 py-1 text-[11px] font-semibold text-primary">Available for booking</span>}
+            </div>
             <h3 className={compact ? "mt-2 text-lg font-bold tracking-tight text-foreground" : "mt-2 break-words text-lg font-bold tracking-tight text-foreground sm:text-xl"}>
               {court.name}
             </h3>

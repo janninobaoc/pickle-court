@@ -12,10 +12,11 @@ import {
 import { mapRegistrationErrors, type RegistrationFieldErrors } from "@/app/lib/register-validation";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
+import { getSafeReturnTo } from "@/app/lib/auth-redirect";
 
 const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function RegisterForm() {
+export default function RegisterForm({ returnTo }: { returnTo?: string }) {
   const router = useRouter();
   const { setAuthenticatedUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,7 +91,7 @@ export default function RegisterForm() {
       setAuthenticatedUser(response.user);
       toast.success("Welcome to PickleCourt! Your account has been created successfully.");
 
-      router.replace("/courts");
+      router.replace(getSafeReturnTo(returnTo));
       router.refresh();
     } catch (error) {
       if (error instanceof AuthApiError) {

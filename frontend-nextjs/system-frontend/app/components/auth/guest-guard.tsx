@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { getSafeReturnTo } from "@/app/lib/auth-redirect";
 
-export default function GuestGuard({ children }: { children: ReactNode }) {
+export default function GuestGuard({
+  children,
+  returnTo,
+}: {
+  children: ReactNode;
+  returnTo?: string;
+}) {
   const router = useRouter();
   const { status, refreshUser } = useAuth();
   const redirectStartedRef = useRef(false);
@@ -15,13 +22,13 @@ export default function GuestGuard({ children }: { children: ReactNode }) {
     if (status === "authenticated") {
       if (!redirectStartedRef.current) {
         redirectStartedRef.current = true;
-        router.replace("/courts");
+        router.replace(getSafeReturnTo(returnTo));
       }
       return;
     }
 
     redirectStartedRef.current = false;
-  }, [router, status]);
+  }, [router, returnTo, status]);
 
   async function handleRetry() {
     if (retryPendingRef.current || status !== "error") return;
@@ -42,7 +49,7 @@ export default function GuestGuard({ children }: { children: ReactNode }) {
       <main className="flex min-h-[50vh] flex-1 items-center justify-center px-4 py-12">
         <p role="status" aria-live="polite" className="inline-flex items-center gap-3 text-sm font-medium text-[#1F2937]">
           <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-[#164A41]/20 border-t-[#164A41] motion-reduce:animate-none" />
-          {status === "authenticated" ? "Redirecting to courts..." : "Checking your session..."}
+          {status === "authenticated" ? "Redirecting..." : "Checking your session..."}
         </p>
       </main>
     );

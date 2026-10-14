@@ -1,5 +1,6 @@
 import type { Court } from "../data/courts";
-import { formatBookingDate, formatPeso, formatTime, timeToMinutes } from "../lib/booking-utils";
+import type { Booking } from "../lib/booking-api";
+import { formatBookingDate, formatPeso, formatPesoExact, formatTime, timeToMinutes } from "../lib/booking-utils";
 import CourtImage from "./court-image";
 
 type BookingSummaryProps = {
@@ -7,9 +8,10 @@ type BookingSummaryProps = {
   selectedDate: string;
   startTime: string;
   endTime: string;
+  bookingResult?: Booking | null;
 };
 
-export default function BookingSummary({ court, selectedDate, startTime, endTime }: BookingSummaryProps) {
+export default function BookingSummary({ court, selectedDate, startTime, endTime, bookingResult = null }: BookingSummaryProps) {
   const hasTimeRange = Boolean(startTime && endTime && timeToMinutes(endTime) > timeToMinutes(startTime));
   const duration = hasTimeRange
     ? (timeToMinutes(endTime) - timeToMinutes(startTime)) / 60
@@ -37,7 +39,7 @@ export default function BookingSummary({ court, selectedDate, startTime, endTime
               <h3 className="break-words text-lg font-bold leading-tight text-foreground">{court.name}</h3>
               <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">{court.category} court</p>
             </div>
-            <span className="inline-flex min-h-7 shrink-0 items-center rounded-full bg-[#eff8dc] px-2.5 py-1 text-xs font-semibold text-primary">Sample listing</span>
+            <span className="inline-flex min-h-7 shrink-0 items-center rounded-full bg-[#eff8dc] px-2.5 py-1 text-xs font-semibold text-primary">Court details</span>
           </div>
           <p className="mt-3 flex items-center gap-2 text-sm text-muted">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4 shrink-0 text-primary">
@@ -82,10 +84,17 @@ export default function BookingSummary({ court, selectedDate, startTime, endTime
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl bg-[#eff8dc] px-4 py-4">
-          <span className="font-semibold text-primary">Estimated total</span>
-          <span className="text-xl font-extrabold text-primary">{formatPeso(total)}</span>
+          <span className="font-semibold text-primary">{bookingResult ? "Server total" : "Estimated total"}</span>
+          <span className="text-xl font-extrabold text-primary">{bookingResult ? formatPesoExact(Number(bookingResult.total_amount)) : formatPesoExact(total)}</span>
         </div>
-        <p className="mt-3 text-xs leading-5 text-muted">Estimate only. This demo does not save a reservation or verify live availability.</p>
+        {bookingResult ? (
+          <dl className="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-border p-3 text-sm">
+            <div><dt className="text-xs text-muted">Booking ID</dt><dd className="font-semibold text-foreground">{bookingResult.id}</dd></div>
+            <div><dt className="text-xs text-muted">Status</dt><dd className="font-semibold capitalize text-foreground">{bookingResult.status}</dd></div>
+          </dl>
+        ) : (
+          <p className="mt-3 text-xs leading-5 text-muted">Estimate based on the listed hourly rate. Laravel checks availability and calculates the final amount when you submit.</p>
+        )}
       </div>
     </aside>
   );

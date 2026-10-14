@@ -33,6 +33,121 @@ class BookingReschedulingTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_rescheduling_availability_requires_authentication(): void
+    {
+        $user = User::factory()->create();
+        $booking = $this->makeBooking($user, 'pending');
+
+        $this->getJson('/api/bookings/'.$booking->id.'/availability?date='.$booking->booking_date)
+            ->assertUnauthorized();
+    }
+
+    public function test_owner_availability_excludes_only_the_current_booking(): void
+    {
+        $owner = User::factory()->create(['name' => 'Private Availability Owner', 'email' => 'availability-owner@example.test']);
+        $booking = $this->makeBooking($owner, 'pending');
+        $otherUser = User::factory()->create();
+
+        $this->createBlockingBooking($booking, $otherUser, 'pending', [
+            'booking_date' => $booking->booking_date,
+            'start_time' => '10:00:00',
+            'end_time' => '11:00:00',
+        ]);
+        $this->createBlockingBooking($booking, $otherUser, 'confirmed', [
+            'booking_date' => $booking->booking_date,
+            'start_time' => '11:00:00',
+            'end_time' => '12:00:00',
+        ]);
+        $this->createBlockingBooking($booking, $otherUser, 'cancelled', [
+            'booking_date' => $booking->booking_date,
+            'start_time' => '12:00:00',
+            'end_time' => '13:00:00',
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->getJson('/api/bookings/'.$booking->id.'/availability?date='.$booking->booking_date)
+            ->assertOk()
+            ->assertJsonPath('status', 200)
+            ->assertJsonPath('data.court_id', $booking->court_id)
+            ->assertJsonPath('data.date', $booking->booking_date);
+
+        $slots = $response->json('data.slots');
+        $this->assertTrue($slots[1]['available'], 'The owner’s current 09:00–10:00 interval is excluded.');
+        $this->assertFalse($slots[2]['available'], 'Other pending bookings still block slots.');
+        $this->assertFalse($slots[3]['available'], 'Other confirmed bookings still block slots.');
+        $this->assertTrue($slots[4]['available'], 'Cancelled bookings do not block slots.');
+        $this->assertStringNotContainsString('Private Availability Owner', $response->getContent());
+        $this->assertStringNotContainsString('availability-owner@example.test', $response->getContent());
+        $this->assertArrayNotHasKey('user_id', $response->json('data'));
+    }
+
+    public function test_another_users_booking_is_not_found_on_rescheduling_availability(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $booking = $this->makeBooking($owner, 'pending');
+
+        $this->actingAs($otherUser)
+            ->getJson('/api/bookings/'.$booking->id.'/availability?date='.$booking->booking_date)
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Booking not found.');
+    }
+
+    public function test_rescheduling_availability_validates_the_requested_date(): void
+    {
+        $owner = User::factory()->create();
+        $booking = $this->makeBooking($owner, 'pending');
+        $pastDate = Carbon::now(config('app.timezone'))->subDay()->toDateString();
+
+        $this->actingAs($owner)
+            ->getJson('/api/bookings/'.$booking->id.'/availability?date=2026-02-30')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['date']);
+
+        $this->actingAs($owner)
+            ->getJson('/api/bookings/'.$booking->id.'/availability?date='.$pastDate)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['date']);
+    }
+
+    public function test_closed_day_is_reported_for_rescheduling_availability(): void
+    {
+        $owner = User::factory()->create();
+        $booking = $this->makeBooking($owner, 'pending');
+        $closedDate = Carbon::createFromFormat('!Y-m-d', $booking->booking_date, config('app.timezone'))
+            ->addDay()
+            ->toDateString();
+
+        $this->actingAs($owner)
+            ->getJson('/api/bookings/'.$booking->id.'/availability?date='.$closedDate)
+            ->assertOk()
+            ->assertJsonPath('data.reason', 'closed_day')
+            ->assertJsonCount(0, 'data.slots');
+    }
+
+    public function test_cancelled_and_already_started_bookings_cannot_request_rescheduling_availability(): void
+    {
+        $owner = User::factory()->create();
+        $cancelled = $this->makeBooking($owner, 'cancelled');
+
+        $this->actingAs($owner)
+            ->getJson('/api/bookings/'.$cancelled->id.'/availability?date='.$cancelled->booking_date)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This booking cannot be rescheduled.');
+
+        $started = $this->makeBooking($owner, 'pending');
+        $today = Carbon::now(config('app.timezone'))->toDateString();
+        Carbon::setTestNow(Carbon::createFromFormat('!Y-m-d H:i:s', $today.' 09:30:00', config('app.timezone')));
+        $started->booking_date = $today;
+        $started->start_time = '09:00:00';
+        $started->end_time = '10:00:00';
+        $started->save();
+
+        $this->getJson('/api/bookings/'.$started->id.'/availability?date='.$today)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'A booking that has already started cannot be rescheduled.');
+    }
+
     public function test_owner_can_reschedule_pending_booking(): void
     {
         $user = User::factory()->create();
@@ -286,6 +401,27 @@ class BookingReschedulingTest extends TestCase
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
             'total_amount' => '600.00',
+        ]);
+    }
+
+    public function test_rescheduling_to_a_shorter_fractional_duration_recalculates_the_amount(): void
+    {
+        $user = User::factory()->create();
+        $booking = $this->makeBooking($user, 'pending');
+
+        $this->actingAs($user)
+            ->patchJson('/api/bookings/'.$booking->id.'/reschedule', $this->futureSchedule([
+                'start_time' => '10:00:00',
+                'end_time' => '10:30:00',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('data.total_amount', 150);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'start_time' => '10:00:00',
+            'end_time' => '10:30:00',
+            'total_amount' => '150.00',
         ]);
     }
 

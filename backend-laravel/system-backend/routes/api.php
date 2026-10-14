@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('/courts')->group(function () {
     Route::get('/', [CourtController::class, 'index'])->name('courts.index');
+    Route::get('/{id}/availability', [CourtController::class, 'availability'])
+        ->whereNumber('id')
+        ->name('courts.availability');
     Route::get('/{id}', [CourtController::class, 'show'])->name('courts.show');
 });
 
@@ -21,6 +24,9 @@ Route::middleware(['auth:sanctum', 'can:manage-courts'])->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('/bookings')->group(function () {
     Route::get('/', [BookingController::class, 'index'])->name('bookings.index');
+    Route::get('/{id}/availability', [BookingController::class, 'availability'])
+        ->whereNumber('id')
+        ->name('bookings.availability');
     Route::get('/{id}', [BookingController::class, 'show'])->name('bookings.show');
     Route::post('/', [BookingController::class, 'store'])->name('bookings.store');
     Route::delete('/{id}', [BookingController::class, 'destroy'])->name('bookings.destroy');

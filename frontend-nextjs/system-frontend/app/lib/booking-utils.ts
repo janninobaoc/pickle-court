@@ -25,6 +25,17 @@ export function getLocalDateString(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getManilaDateString(date = new Date()): string {
+  const fields = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(fields.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function parseLocalDate(dateValue: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
   if (!match) return null;
@@ -58,5 +69,14 @@ export function formatPeso(amount: number): string {
     style: "currency",
     currency: "PHP",
     maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export function formatPesoExact(amount: number): string {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }

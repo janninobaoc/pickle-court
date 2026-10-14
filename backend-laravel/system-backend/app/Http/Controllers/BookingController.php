@@ -3,18 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BookingRequest;
+use App\Http\Requests\CourtAvailabilityRequest;
 use App\Http\Requests\RescheduleBookingRequest;
 use Illuminate\Http\Request;
 use App\Services\BookingService;
+use App\Services\CourtAvailabilityService;
 use Symfony\Component\HttpFoundation\Response;
 
 class BookingController extends Controller
 {
     protected BookingService $bookingService;
+    protected CourtAvailabilityService $courtAvailabilityService;
 
-    public function __construct(BookingService $bookingService)
+    public function __construct(BookingService $bookingService, CourtAvailabilityService $courtAvailabilityService)
     {
         $this->bookingService = $bookingService;
+        $this->courtAvailabilityService = $courtAvailabilityService;
     }
 
     public function index(Request $request)
@@ -143,6 +147,34 @@ class BookingController extends Controller
 
             return response()->json([
                 'message' => 'Unable to reschedule this booking at this time.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function availability(int $id, CourtAvailabilityRequest $request)
+    {
+        try {
+            return response()->json([
+                'status' => Response::HTTP_OK,
+                'data' => $this->courtAvailabilityService->forReschedulingBooking(
+                    $id,
+                    (int) $request->user()->id,
+                    $request->validated('date')
+                ),
+            ], Response::HTTP_OK);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Booking not found.',
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], Response::HTTP_CONFLICT);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Unable to retrieve booking availability.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

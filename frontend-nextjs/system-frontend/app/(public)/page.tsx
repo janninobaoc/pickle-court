@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import Button from "@/app/components/button";
 import Container from "@/app/components/container";
-import CourtCard from "@/app/components/court-card";
-import { featuredCourts } from "@/app/data/courts";
+import FeaturedCourtGrid, { FeaturedCourtGridSkeleton } from "@/app/components/featured-court-grid";
 
 type IconKind = "search" | "calendar" | "check" | "bolt" | "clock" | "court";
 
@@ -128,7 +128,7 @@ export default function Home() {
                 Featured <span className="text-[#5C9142]">Courts.</span>
               </h2>
               <p className="mt-4 max-w-[600px] text-base leading-7 text-muted sm:mt-5 sm:text-lg sm:leading-8">
-                Discover great places to play. Explore our selection of pickleball courts and find the perfect spot for your next match.
+                Discover great places to play. Explore available pickleball courts and find the perfect spot for your next match. Court status means it can accept bookings; a specific time is confirmed when you book.
               </p>
             </div>
             <Link
@@ -141,9 +141,9 @@ export default function Home() {
               </svg>
             </Link>
           </div>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-            {featuredCourts.map((court) => <CourtCard key={court.id} court={court} compact />)}
-          </div>
+          <Suspense fallback={<FeaturedCourtGridSkeleton />}>
+            <FeaturedCourtGrid />
+          </Suspense>
         </Container>
       </section>
 

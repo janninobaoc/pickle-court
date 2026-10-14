@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Button from "@/app/components/button";
 import BookingList from "@/app/components/booking-list";
 import Container from "@/app/components/container";
-import { courts } from "@/app/data/courts";
 
 export const metadata: Metadata = {
   title: "My Bookings | PickleCourt",
@@ -36,7 +35,7 @@ export default function BookingsPage() {
       </section>
 
       <Container className="py-8 sm:py-10 lg:py-12">
-        <BookingList courts={courts} />
+        <BookingList />
       </Container>
     </main>
   );
