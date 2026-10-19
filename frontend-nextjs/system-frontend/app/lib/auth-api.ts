@@ -88,6 +88,26 @@ async function initializeCsrf(): Promise<void> {
     }
 }
 
+/** Send a stateful API request after initializing Sanctum CSRF protection. */
+export async function fetchWithCsrf(
+    path: string,
+    init: RequestInit,
+): Promise<Response> {
+    await initializeCsrf();
+
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    headers.set("X-XSRF-TOKEN", getXsrfToken());
+
+    const endpoint = path.startsWith("/") ? path : `/${path}`;
+
+    return fetch(`${API_BASE_URL}${endpoint}`, {
+        ...init,
+        credentials: "include",
+        headers,
+    });
+}
+
 export async function register(
     payload: RegisterPayload,
 ): Promise<AuthResponse> {
