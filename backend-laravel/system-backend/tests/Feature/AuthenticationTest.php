@@ -35,7 +35,8 @@ class AuthenticationTest extends TestCase
         $response = $this->postSpaJson('/api/register', $this->validRegistration());
 
         $response->assertCreated()
-            ->assertJsonPath('message', 'Registration successful.');
+            ->assertJsonPath('message', 'Registration successful.')
+            ->assertJsonPath('user.role', 'customer');
 
         $this->assertUserPayloadKeys($response->json('user'));
         $this->assertDatabaseHas('users', ['email' => 'auth-register@example.test']);
@@ -86,11 +87,26 @@ class AuthenticationTest extends TestCase
 
     public function test_registration_ignores_client_supplied_administrator_role(): void
     {
-        $this->postSpaJson('/api/register', $this->validRegistration(['role' => 'admin']))
-            ->assertCreated();
+        $response = $this->postSpaJson('/api/register', $this->validRegistration(['role' => 'admin']));
+
+        $response->assertCreated()
+            ->assertJsonPath('user.role', 'customer');
 
         $user = User::where('email', 'auth-register@example.test')->firstOrFail();
         $this->assertSame('customer', $user->role);
+    }
+
+    public function test_role_is_not_mass_assignable(): void
+    {
+        $user = User::create([
+            'name' => 'Mass Assignment Check',
+            'email' => 'mass-assignment@example.test',
+            'password' => 'Correct-Horse-42!',
+            'role' => 'admin',
+        ]);
+
+        $this->assertSame('customer', $user->role);
+        $this->assertSame('customer', $user->fresh()->role);
     }
 
     public function test_valid_credentials_return_ok_and_only_safe_user_fields(): void
@@ -103,6 +119,26 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response->assertOk()->assertJsonPath('message', 'Login successful.');
+        $this->assertUserPayloadKeys($response->json('user'));
+        $this->assertSame('customer', $response->json('user.role'));
+    }
+
+    public function test_administrator_login_returns_the_administrator_role(): void
+    {
+        $admin = $this->makeUser('admin-login@example.test', 'Correct-Horse-42!');
+        $admin->role = 'admin';
+        $admin->save();
+
+        $this->assertSame('admin', User::query()->findOrFail($admin->id)->role);
+
+        $response = $this->postSpaJson('/api/login', [
+            'email' => $admin->email,
+            'password' => 'Correct-Horse-42!',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Login successful.')
+            ->assertJsonPath('user.role', 'admin');
         $this->assertUserPayloadKeys($response->json('user'));
     }
 
@@ -163,7 +199,8 @@ class AuthenticationTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('user.id', $user->id)
-            ->assertJsonPath('user.email', $user->email);
+            ->assertJsonPath('user.email', $user->email)
+            ->assertJsonPath('user.role', 'customer');
         $this->assertUserPayloadKeys($response->json('user'));
     }
 
@@ -279,7 +316,7 @@ class AuthenticationTest extends TestCase
     private function assertUserPayloadKeys(?array $user): void
     {
         $this->assertIsArray($user);
-        $this->assertSame(['id', 'name', 'email'], array_keys($user));
+        $this->assertSame(['id', 'name', 'email', 'role'], array_keys($user));
     }
 
     private function assertSafeTestDatabase(): void

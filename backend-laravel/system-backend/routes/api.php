@@ -50,3 +50,23 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('auth.user');
 });
 
+Route::prefix('admin')->middleware(['auth:sanctum', 'can:access-admin-api'])->group(function () {
+    Route::prefix('courts')->group(function () {
+        Route::get('/', [CourtController::class, 'index'])
+            ->name('admin.courts.index');
+
+        Route::get('/{id}', [CourtController::class, 'show'])
+            ->whereNumber('id')
+            ->name('admin.courts.show');
+
+        Route::post('/', [CourtController::class, 'store'])
+            ->name('admin.courts.store');
+
+        Route::put('/{court}', [CourtController::class, 'update'])
+            ->name('admin.courts.update');
+
+        Route::delete('/{id}', [CourtController::class, 'destroy'])
+            ->name('admin.courts.destroy');
+    });
+});
+

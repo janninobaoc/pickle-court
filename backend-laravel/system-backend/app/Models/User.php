@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    protected $attributes = [
+        'role' => 'customer',
+    ];
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 

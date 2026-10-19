@@ -32,7 +32,11 @@ class AppServiceProvider extends ServiceProvider
             return $user->role === 'admin';
         });
 
-        if ($this->app->environment('testing') && ! self::$testingDatabaseGuardRegistered) {
+        Gate::define('access-admin-api', function (User $user): bool {
+            return $user->role === 'admin';
+        });
+
+        if ($this->app->environment('testing') && !self::$testingDatabaseGuardRegistered) {
             self::$testingDatabaseGuardRegistered = true;
 
             ConsoleApplication::starting(function (ConsoleApplication $artisan): void {
@@ -41,7 +45,7 @@ class AppServiceProvider extends ServiceProvider
                 $dispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event): void {
                     $command = $event->getCommand()?->getName();
 
-                    if (! TestingDatabaseSafety::isDatabaseMutationCommand($command)) {
+                    if (!TestingDatabaseSafety::isDatabaseMutationCommand($command)) {
                         return;
                     }
 
