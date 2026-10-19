@@ -4,11 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { AuthApiError, logout } from "@/app/lib/auth-api";
+// import { AuthApiError, logout } from "@/app/lib/auth-api";
 import { useAuth } from "@/contexts/auth-context";
-import { toast } from "sonner";
+// import { toast } from "sonner";
 import Button from "./button";
 import Container from "./container";
+import { useLogout } from "@/app/hooks/use-logout";
 
 function isRouteActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -17,15 +18,14 @@ function isRouteActive(pathname: string, href: string) {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, status, clearAuthenticatedUser, refreshUser } = useAuth();
+  const { user, status, refreshUser } = useAuth();
+  const { isLoggingOut, handleLogout } = useLogout();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const profileControlRef = useRef<HTMLDivElement>(null);
-  const logoutPendingRef = useRef(false);
   const retryPendingRef = useRef(false);
   const courtsActive = isRouteActive(pathname, "/courts");
 
@@ -73,35 +73,12 @@ export default function Navbar() {
     };
   }, [profileOpen]);
 
-  async function handleLogout() {
-    if (logoutPendingRef.current || status !== "authenticated" || !user) {
-      return;
-    }
+  async function handleNavbarLogout() {
+    const success = await handleLogout();
 
-    logoutPendingRef.current = true;
-    setIsLoggingOut(true);
-
-    try {
-      await logout();
-      toast.success("You have been logged out successfully.");
-      clearAuthenticatedUser();
+    if (success) {
       setProfileOpen(false);
       closeMenu();
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      if (error instanceof AuthApiError && error.status === 419) {
-        toast.error("Your session expired. Please refresh and try again.");
-      } else if (error instanceof AuthApiError && error.status === 401) {
-        toast.error("Your session could not be verified. Please try again.");
-      } else if (error instanceof AuthApiError) {
-        toast.error("Logout failed. Please try again.");
-      } else {
-        toast.error("Unable to log out. Please check your connection and try again.");
-      }
-    } finally {
-      logoutPendingRef.current = false;
-      setIsLoggingOut(false);
     }
   }
 
@@ -200,7 +177,7 @@ export default function Navbar() {
             </Link>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={handleNavbarLogout}
               disabled={isLoggingOut}
               aria-label={isLoggingOut ? "Logging out" : "Log out"}
               className="mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
@@ -231,23 +208,23 @@ export default function Navbar() {
             hidden={!profileOpen}
             className="absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl border border-[#164A41]/10 bg-white p-2 shadow-[0_14px_36px_rgba(22,74,65,0.16)]"
           >
-              <Link
-                href="/bookings"
-                aria-current={isRouteActive(pathname, "/bookings") ? "page" : undefined}
-                onClick={() => setProfileOpen(false)}
-                className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-[#1F2937] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41]"
-              >
-                My Bookings
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                aria-label={isLoggingOut ? "Logging out" : "Log out"}
-                className="mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoggingOut ? "Logging out..." : "Logout"}
-              </button>
+            <Link
+              href="/bookings"
+              aria-current={isRouteActive(pathname, "/bookings") ? "page" : undefined}
+              onClick={() => setProfileOpen(false)}
+              className="flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-[#1F2937] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41]"
+            >
+              My Bookings
+            </Link>
+            <button
+              type="button"
+              onClick={handleNavbarLogout}
+              disabled={isLoggingOut}
+              aria-label={isLoggingOut ? "Logging out" : "Log out"}
+              className="mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold text-[#164A41] transition-colors hover:bg-[#F8FAF7] focus-visible:outline-2 focus-visible:outline-[#164A41] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </button>
           </div>
         </div>
       );

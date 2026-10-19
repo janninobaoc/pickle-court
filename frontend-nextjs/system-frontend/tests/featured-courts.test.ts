@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ApiCourt } from "../app/lib/courts-api";
+import type { ApiCourt } from "../app/types/court";
 import { selectFeaturedCourts } from "../app/lib/featured-courts";
 
 function apiCourt(overrides: Partial<ApiCourt> = {}): ApiCourt {

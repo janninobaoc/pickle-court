@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLogout } from "@/app/hooks/use-logout";
 
 const adminLinks = [
   { label: "Overview", href: "/admin", icon: "overview" },
@@ -29,6 +30,15 @@ type AdminSidebarProps = { mobileOpen: boolean; onNavigate: () => void };
 
 export default function AdminSidebar({ mobileOpen, onNavigate }: AdminSidebarProps) {
   const pathname = usePathname();
+  const { isLoggingOut, handleLogout } = useLogout();
+
+  async function handleAdminLogout() {
+    const success = await handleLogout();
+
+    if (success) {
+      onNavigate?.();
+    }
+  }
 
   return (
     <>
@@ -70,7 +80,18 @@ export default function AdminSidebar({ mobileOpen, onNavigate }: AdminSidebarPro
             );
           })}
         </nav>
-        <p className="mt-auto border-t border-white/10 px-6 py-5 text-xs leading-5 text-white/60">Demo workspace<br />Access restrictions are not enabled.</p>
+        <div className="mt-auto space-y-3">
+          <button
+            type="button"
+            onClick={handleAdminLogout}
+            disabled={isLoggingOut}
+            aria-label={isLoggingOut ? "Logging out" : "Log out"}
+            className="flex min-h-11 w-full items-center rounded-xl px-4 py-3 text-left text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoggingOut ? "Logging out..." : "Logout"}
+          </button>
+          <p className="border-t border-white/10 px-6 py-5 text-xs leading-5 text-white/60">Demo workspace<br />Access restrictions are not enabled.</p>
+        </div>
       </aside>
     </>
   );

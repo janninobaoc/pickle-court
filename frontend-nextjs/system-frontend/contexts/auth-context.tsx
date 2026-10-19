@@ -29,6 +29,8 @@ interface AuthContextValue {
   setAuthenticatedUser: (user: AuthUser) => void;
   clearAuthenticatedUser: () => void;
   refreshUser: () => Promise<void>;
+  logoutRedirectPending: boolean;
+  setLogoutRedirectPending: (pending: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(
@@ -44,10 +46,12 @@ export function AuthProvider({
   const [status, setStatus] = useState<AuthStatus>("loading");
   const mountedRef = useRef(false);
   const requestGenerationRef = useRef(0);
+  const [logoutRedirectPending, setLogoutRedirectPending] = useState(false);
 
   const setAuthenticatedUser = useCallback((user: AuthUser) => {
     requestGenerationRef.current += 1;
     invalidateCurrentUserRequest();
+    setLogoutRedirectPending(false);
     setUser(user);
     setStatus("authenticated");
   }, []);
@@ -74,6 +78,7 @@ export function AuthProvider({
       }
 
       if (currentUser) {
+        setLogoutRedirectPending(false);
         setUser(currentUser);
         setStatus("authenticated");
       } else {
@@ -109,6 +114,8 @@ export function AuthProvider({
         setAuthenticatedUser,
         clearAuthenticatedUser,
         refreshUser,
+        logoutRedirectPending,
+        setLogoutRedirectPending,
       }}
     >
       {children}

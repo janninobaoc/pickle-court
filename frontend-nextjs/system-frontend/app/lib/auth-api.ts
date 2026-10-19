@@ -11,6 +11,7 @@ export interface AuthUser {
     id: number;
     name: string;
     email: string;
+    role: "admin" | "customer";
 }
 
 export interface AuthResponse {

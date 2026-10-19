@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 
 const toasterStyle = {
@@ -28,7 +29,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-screen flex-col">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <Toaster
           position="top-center"
           theme="light"

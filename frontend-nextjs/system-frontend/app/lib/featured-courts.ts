@@ -1,4 +1,4 @@
-import type { ApiCourt } from "./courts-api";
+import type { ApiCourt } from "../types/court";
 import { mapApiCourt } from "./court-mapper";
 import type { Court } from "../data/courts";
 

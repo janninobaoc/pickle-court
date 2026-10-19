@@ -16,13 +16,14 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const returnTo = getSafeReturnTo(params.returnTo);
-  const registerHref = returnTo === DEFAULT_AUTH_REDIRECT
+  const rawReturnTo = params.returnTo;
+  const safeReturnTo = getSafeReturnTo(rawReturnTo);
+  const registerHref = safeReturnTo === DEFAULT_AUTH_REDIRECT
     ? "/register"
-    : `/register?returnTo=${encodeURIComponent(returnTo)}`;
+    : `/register?returnTo=${encodeURIComponent(safeReturnTo)}`;
 
   return (
-    <GuestGuard returnTo={returnTo}>
+    <GuestGuard returnTo={rawReturnTo}>
       <AuthSplitLayout
         eyebrow="Welcome Back"
         title="Log in to your account"
@@ -30,7 +31,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         demoNotice="Log in to your PickleCourt account to explore courts and manage your bookings."
         footer={<>Don&apos;t have an account? <Link href={registerHref} className="rounded font-semibold text-[#164A41] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]">Sign up</Link></>}
       >
-        <LoginForm returnTo={returnTo} />
+        <LoginForm returnTo={rawReturnTo} />
       </AuthSplitLayout>
     </GuestGuard>
   );

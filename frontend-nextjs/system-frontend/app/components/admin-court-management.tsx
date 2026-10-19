@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { Court } from "../data/courts";
-import { courts as initialCourts } from "../data/courts";
 import { formatPeso } from "../lib/booking-utils";
 import Button from "./button";
 import CourtEditorForm from "./court-editor-form";
+import { mapApiCourt } from "../lib/court-mapper";
+import { useAuth } from "@/contexts/auth-context";
+import { AdminCourtsApiError, getAdminCourts } from "../lib/admin-courts-api";
 
 type CourtTypeFilter = "All" | "Indoor" | "Outdoor";
 type AvailabilityFilter = "All" | "Available" | "Unavailable";
@@ -16,9 +18,10 @@ const filterStyles =
   "mt-1.5 min-h-11 w-full rounded-xl border border-border bg-white px-3.5 text-sm text-foreground outline-none transition hover:border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 
 export default function AdminCourtManagement() {
-  const [localCourts, setLocalCourts] = useState<Court[]>(() =>
-    initialCourts.map((court) => ({ ...court, amenities: [...court.amenities] })),
-  );
+  const [localCourts, setLocalCourts] = useState<Court[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CourtTypeFilter>("All");
   const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>("All");
@@ -26,6 +29,55 @@ export default function AdminCourtManagement() {
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const [editorKey, setEditorKey] = useState(0);
   const [successMessage, setSuccessMessage] = useState("");
+  const { refreshUser } = useAuth();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCourts() {
+      try {
+        const apiCourts = await getAdminCourts();
+        const mappedCourts = apiCourts.map(mapApiCourt);
+
+        if (!cancelled) {
+          setLocalCourts(mappedCourts);
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        if (err instanceof AdminCourtsApiError) {
+          if (err.status === 401) {
+            setError("Your session has expired. Checking authentication...");
+            void refreshUser();
+            return;
+          }
+
+          if (err.status === 403) {
+            setError("You do not have permission to manage courts.");
+            return;
+          }
+        }
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load courts."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    setIsLoading(true);
+    setError(null);
+    void loadCourts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [retryCount, refreshUser]);
 
   const filteredCourts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -92,6 +144,25 @@ export default function AdminCourtManagement() {
     setAvailabilityFilter("All");
   }
 
+  if (isLoading) {
+    return <p>Loading courts...</p>;
+  }
+
+  if (error) {
+    return (
+      <div role="alert">
+        <p>{error}</p>
+
+        <button
+          type="button"
+          onClick={() => setRetryCount((count) => count + 1)}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900" role="note">
@@ -116,7 +187,7 @@ export default function AdminCourtManagement() {
             className={`${filterStyles} sm:max-w-md`}
           />
         </div>
-        <Button type="button" onClick={openAddForm} className="shrink-0">Add Court</Button>
+        <Button type="button" disabled onClick={openAddForm} className="shrink-0">Add Court</Button>
       </div>
 
       <section aria-label="Court filters" className="grid gap-4 sm:grid-cols-2">
@@ -185,8 +256,8 @@ export default function AdminCourtManagement() {
                     <td className="whitespace-nowrap px-5 py-4">
                       <div className="flex justify-end gap-1">
                         <Link href={`/courts/${court.id}`} className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">View</Link>
-                        <button type="button" onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">Edit</button>
-                        <button type="button" onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
+                        <button type="button" disabled onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">Edit</button>
+                        <button type="button" disabled onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
                       </div>
                     </td>
                   </tr>

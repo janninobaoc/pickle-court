@@ -3,32 +3,43 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { getSafeReturnTo } from "@/app/lib/auth-redirect";
+import { getRoleAwareAuthRedirect } from "@/app/lib/auth-redirect";
 
 export default function GuestGuard({
   children,
   returnTo,
 }: {
   children: ReactNode;
-  returnTo?: string;
+  returnTo?: string | string[];
 }) {
   const router = useRouter();
-  const { status, refreshUser } = useAuth();
+  const { status,
+    refreshUser,
+    user,
+    logoutRedirectPending,
+    setLogoutRedirectPending,
+  } = useAuth();
   const redirectStartedRef = useRef(false);
   const retryPendingRef = useRef(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
+    if (status === "unauthenticated" && logoutRedirectPending) {
+      setLogoutRedirectPending(false);
+    }
+
     if (status === "authenticated") {
       if (!redirectStartedRef.current) {
         redirectStartedRef.current = true;
-        router.replace(getSafeReturnTo(returnTo));
+        if (user) {
+          router.replace(getRoleAwareAuthRedirect(returnTo, user.role));
+        }
       }
       return;
     }
 
     redirectStartedRef.current = false;
-  }, [router, returnTo, status]);
+  }, [status, user, returnTo, router, logoutRedirectPending, setLogoutRedirectPending]);
 
   async function handleRetry() {
     if (retryPendingRef.current || status !== "error") return;

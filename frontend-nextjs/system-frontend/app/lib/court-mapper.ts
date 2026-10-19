@@ -1,5 +1,5 @@
 
-import type { ApiCourt } from "./courts-api";
+import type { ApiCourt } from "../types/court";
 import type { Court } from "../data/courts";
 
 export type MappedCourt = Court;

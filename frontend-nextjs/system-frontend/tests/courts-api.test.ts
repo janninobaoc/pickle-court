@@ -35,12 +35,19 @@ describe("public courts API helper", () => {
     it("gets real court records from the existing public GET /api/courts endpoint", async () => {
         fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([apiCourt]), { status: 200 }));
         await expect(getCourts()).resolves.toEqual([apiCourt]);
-        expect(fetchMock).toHaveBeenCalledWith("http://localhost:8000/api/courts", { cache: "no-store" });
+        expect(fetchMock).toHaveBeenCalledWith("http://localhost:8000/api/courts", {
+            method: "GET",
+            credentials: "include",
+            headers: {
+                Accept: "application/json",
+            },
+            cache: "no-store",
+        });
     });
 
     it("rejects an unsuccessful backend response", async () => {
         fetchMock.mockResolvedValueOnce(new Response("{}", { status: 503 }));
-        await expect(getCourts()).rejects.toThrow("Failed to fetch courts: 503");
+        await expect(getCourts()).rejects.toThrow("Failed to fetch courts (503)");
     });
 
     it("rejects a malformed non-array response", async () => {
