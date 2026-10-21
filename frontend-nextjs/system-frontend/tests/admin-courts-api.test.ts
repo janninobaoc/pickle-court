@@ -3,6 +3,7 @@ import {
     AdminCourtsApiError,
     createAdminCourt,
     getAdminCourts,
+    updateAdminCourt,
 } from "../app/lib/admin-courts-api";
 import { AuthApiError } from "../app/lib/auth-api";
 import type { ApiCourt, CreateAdminCourtPayload } from "../app/types/court";
@@ -427,6 +428,159 @@ describe("admin courts API helper", () => {
                 "http://localhost:8000/api/admin/courts",
             );
             vi.resetModules();
+        });
+    });
+
+    describe("updateAdminCourt", () => {
+        const updatedCourt: ApiCourt = {
+            ...apiCourts[0],
+            name: "Riverside Updated Court",
+            hourly_rate: "375.00",
+            updated_at: "2026-10-21T09:30:00.000000Z",
+        };
+        const updateResponse = {
+            status: 200,
+            message: "Court updated successfully",
+            data: updatedCourt,
+        };
+
+        it("initializes Sanctum and sends one typed PUT with credentials and CSRF headers", async () => {
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockResolvedValueOnce(jsonResponse(updateResponse, 200));
+
+            await expect(updateAdminCourt("17", courtPayload)).resolves.toEqual(updateResponse);
+
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(fetchMock.mock.calls[0][0]).toBe(`${backendOrigin}/sanctum/csrf-cookie`);
+            expect(fetchMock.mock.calls[0][1]).toMatchObject({
+                method: "GET",
+                credentials: "include",
+                headers: { Accept: "application/json" },
+            });
+            expect(fetchMock.mock.calls[1][0]).toBe(`${apiBaseUrl}/admin/courts/17`);
+            const protectedRequest = fetchMock.mock.calls[1][1] as RequestInit;
+            const requestHeaders = new Headers(protectedRequest.headers);
+            expect(protectedRequest).toMatchObject({
+                method: "PUT",
+                credentials: "include",
+                body: JSON.stringify(courtPayload),
+            });
+            expect(requestHeaders.get("Accept")).toBe("application/json");
+            expect(requestHeaders.get("Content-Type")).toBe("application/json");
+            expect(requestHeaders.get("X-XSRF-TOKEN")).toBe("csrf token");
+        });
+
+        it.each([
+            [401, "Unauthenticated."],
+            [403, "This action is unauthorized."],
+            [419, "Your session expired."],
+            [500, "Unable to update court."],
+        ])("preserves the HTTP %i status and Laravel message", async (status, message) => {
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockResolvedValueOnce(jsonResponse({ message }, status));
+
+            const error = await updateAdminCourt(17, courtPayload).catch(
+                (reason: unknown) => reason,
+            );
+
+            expect(error).toBeInstanceOf(AdminCourtsApiError);
+            expect(error).toMatchObject({ status, message });
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        });
+
+        it("preserves Laravel field errors from an HTTP 422 response", async () => {
+            const validationErrors = {
+                name: ["The name has already been taken."],
+                hourly_rate: ["The hourly rate must have at most two decimal places."],
+            };
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockResolvedValueOnce(jsonResponse({
+                    message: "The given data was invalid.",
+                    errors: validationErrors,
+                }, 422));
+
+            const error = await updateAdminCourt(17, courtPayload).catch(
+                (reason: unknown) => reason,
+            );
+
+            expect(error).toBeInstanceOf(AdminCourtsApiError);
+            expect(error).toMatchObject({
+                status: 422,
+                message: "The given data was invalid.",
+                errors: validationErrors,
+            });
+        });
+
+        it("uses a status fallback for non-JSON error responses", async () => {
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockResolvedValueOnce(new Response("not JSON", { status: 500 }));
+
+            const error = await updateAdminCourt(17, courtPayload).catch(
+                (reason: unknown) => reason,
+            );
+
+            expect(error).toBeInstanceOf(AdminCourtsApiError);
+            expect(error).toMatchObject({
+                status: 500,
+                message: "Failed to update admin court (500)",
+            });
+        });
+
+        it.each([
+            ["invalid JSON", "not JSON"],
+            ["null body", "null"],
+            ["array body", "[]"],
+            ["missing status", JSON.stringify({ message: "Updated", data: updatedCourt })],
+            ["non-numeric status", JSON.stringify({ status: "200", message: "Updated", data: updatedCourt })],
+            ["missing message", JSON.stringify({ status: 200, data: updatedCourt })],
+            ["non-string message", JSON.stringify({ status: 200, message: 12, data: updatedCourt })],
+            ["missing court data", JSON.stringify({ status: 200, message: "Updated" })],
+            ["malformed court data", JSON.stringify({ status: 200, message: "Updated", data: { id: 17 } })],
+        ])("rejects a successful response with %s", async (_case, body) => {
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockResolvedValueOnce(new Response(body, { status: 200 }));
+
+            const error = await updateAdminCourt(17, courtPayload).catch(
+                (reason: unknown) => reason,
+            );
+
+            expect(error).toBeInstanceOf(AdminCourtsApiError);
+            expect(error).toMatchObject({
+                status: 200,
+                message: "Invalid court update response (200)",
+            });
+        });
+
+        it("does not send the protected PUT when CSRF initialization fails", async () => {
+            fetchMock.mockResolvedValueOnce(new Response(null, { status: 419 }));
+
+            const error = await updateAdminCourt(17, courtPayload).catch(
+                (reason: unknown) => reason,
+            );
+
+            expect(error).toBeInstanceOf(AuthApiError);
+            expect(error).toHaveProperty("status", 419);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it("propagates protected-request network failures without retrying the PUT", async () => {
+            const networkError = new TypeError("Network unavailable");
+            fetchMock
+                .mockResolvedValueOnce(new Response(null, { status: 204 }))
+                .mockRejectedValueOnce(networkError);
+
+            await expect(updateAdminCourt(17, courtPayload)).rejects.toBe(networkError);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(
+                fetchMock.mock.calls.filter(
+                    ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
+                ),
+            ).toHaveLength(1);
         });
     });
 });

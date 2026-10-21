@@ -33,7 +33,15 @@ export type CreateAdminCourtPayload = {
     image?: string | null;
 };
 
+export type UpdateAdminCourtPayload = CreateAdminCourtPayload;
+
 export type CreateAdminCourtResponse = {
     status: number;
     message: string;
+};
+
+export type UpdateAdminCourtResponse = {
+    status: number;
+    message: string;
+    data: ApiCourt;
 };

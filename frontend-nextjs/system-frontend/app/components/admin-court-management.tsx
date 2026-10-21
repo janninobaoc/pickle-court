@@ -12,9 +12,10 @@ import {
   AdminCourtsApiError,
   createAdminCourt,
   getAdminCourts,
+  updateAdminCourt,
 } from "../lib/admin-courts-api";
 import { AuthApiError } from "../lib/auth-api";
-import type { CreateAdminCourtPayload } from "../types/court";
+import type { CreateAdminCourtPayload, UpdateAdminCourtPayload } from "../types/court";
 import type { CourtEditorFieldErrors } from "./court-editor-form";
 
 type CourtTypeFilter = "All" | "Indoor" | "Outdoor";
@@ -33,6 +34,36 @@ const apiToEditorField: Record<string, keyof CourtEditorFieldErrors> = {
   opening_time: "openingTime",
   closing_time: "closingTime",
 };
+
+function mapValidationErrors(errors: AdminCourtsApiError["errors"]) {
+  const fieldErrors: CourtEditorFieldErrors = {};
+  const messages: string[] = [];
+
+  for (const [apiField, fieldMessages] of Object.entries(errors)) {
+    const editorField = apiToEditorField[apiField] ?? (
+      apiField.startsWith("amenities.") ? "amenities" : undefined
+    );
+    const validMessages = fieldMessages.filter((message) => message.trim().length > 0);
+    if (editorField && validMessages[0]) fieldErrors[editorField] = validMessages[0];
+    messages.push(...validMessages.map((message) => `${apiField}: ${message}`));
+  }
+
+  return { fieldErrors, message: messages.join(" ") };
+}
+
+function mapEditorChangesToPayload(changes: CourtChanges): CreateAdminCourtPayload {
+  return {
+    name: changes.name,
+    type: changes.category,
+    hourly_rate: changes.pricePerHour,
+    status: changes.available ? "available" : "unavailable",
+    description: changes.description,
+    location: changes.location,
+    amenities: changes.amenities,
+    opening_time: changes.openingTime,
+    closing_time: changes.closingTime,
+  };
+}
 
 const filterStyles =
   "mt-1.5 min-h-11 w-full rounded-xl border border-border bg-white px-3.5 text-sm text-foreground outline-none transition hover:border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
@@ -56,6 +87,7 @@ export default function AdminCourtManagement() {
   const [submissionFieldErrors, setSubmissionFieldErrors] = useState<CourtEditorFieldErrors>({});
   const [refreshCreatedCourtsError, setRefreshCreatedCourtsError] = useState<string | null>(null);
   const createInFlightRef = useRef(false);
+  const updateInFlightRef = useRef(false);
   const refreshInFlightRef = useRef(false);
   const creationOutcomeRef = useRef<CreationOutcome>("idle");
   const { refreshUser } = useAuth();
@@ -127,10 +159,13 @@ export default function AdminCourtManagement() {
   }
 
   function openEditForm(court: Court) {
+    if (editorOpen || isSavingCourt || isRefreshingCreatedCourts) return;
     setEditingCourt(court);
     setEditorKey((key) => key + 1);
     setEditorOpen(true);
     setSuccessMessage("");
+    setSubmissionError(null);
+    setSubmissionFieldErrors({});
   }
 
   async function refreshCreatedCourtList() {
@@ -189,13 +224,63 @@ export default function AdminCourtManagement() {
 
   async function saveCourt(changes: CourtChanges) {
     if (editingCourt) {
-      setLocalCourts((current) => current.map((court) =>
-        court.id === editingCourt.id ? { ...court, ...changes, image: changes.image ?? court.image, id: court.id } : court,
-      ));
-      setSuccessMessage("Demo action: court updated in local page state only.");
-      setEditorOpen(false);
-      setEditingCourt(null);
-      resetFilters();
+      if (updateInFlightRef.current) return;
+
+      updateInFlightRef.current = true;
+      setIsSavingCourt(true);
+      setSubmissionError(null);
+      setSubmissionFieldErrors({});
+      setSuccessMessage("");
+
+      const payload: UpdateAdminCourtPayload = mapEditorChangesToPayload(changes);
+
+      try {
+        const response = await updateAdminCourt(editingCourt.id, payload);
+        const updatedCourt = mapApiCourt(response.data);
+        setLocalCourts((current) => current.map((court) =>
+          court.id === editingCourt.id ? updatedCourt : court,
+        ));
+        setEditorOpen(false);
+        setEditingCourt(null);
+        setSuccessMessage("Court updated successfully.");
+      } catch (err) {
+        if (err instanceof AdminCourtsApiError) {
+          if (err.status === 401) {
+            setSubmissionError("Your session has expired. Checking authentication...");
+            void refreshUser();
+          } else if (err.status === 403) {
+            setSubmissionError("You do not have permission to update courts.");
+          } else if (err.status === 419) {
+            setSubmissionError("Your session or CSRF token has expired. Refresh the page and sign in again.");
+          } else if (err.status === 422) {
+            const validation = mapValidationErrors(err.errors);
+            setSubmissionFieldErrors(validation.fieldErrors);
+            setSubmissionError(validation.message || err.message);
+          } else {
+            setSubmissionError(err.message);
+          }
+        } else if (err instanceof AuthApiError) {
+          if (err.status === 401) {
+            setSubmissionError("Your session has expired. Checking authentication...");
+            void refreshUser();
+          } else {
+            setSubmissionError(
+              err.status === 419
+                ? "Your session or CSRF token has expired. Refresh the page and sign in again."
+                : err.message,
+            );
+          }
+        } else {
+          setSubmissionError(
+            err instanceof Error
+              ? `Could not update the court: ${err.message}. Review the court list before trying again.`
+              : "Could not confirm whether the court was updated. Review the court list before trying again.",
+          );
+        }
+      } finally {
+        updateInFlightRef.current = false;
+        setIsSavingCourt(false);
+      }
       return;
     }
 
@@ -208,17 +293,7 @@ export default function AdminCourtManagement() {
     setRefreshCreatedCourtsError(null);
     setSuccessMessage("");
 
-    const payload: CreateAdminCourtPayload = {
-      name: changes.name,
-      type: changes.category,
-      hourly_rate: changes.pricePerHour,
-      status: changes.available ? "available" : "unavailable",
-      description: changes.description,
-      location: changes.location,
-      amenities: changes.amenities,
-      opening_time: changes.openingTime,
-      closing_time: changes.closingTime,
-    };
+    const payload: CreateAdminCourtPayload = mapEditorChangesToPayload(changes);
 
     try {
       await createAdminCourt(payload);
@@ -235,22 +310,9 @@ export default function AdminCourtManagement() {
         } else if (err.status === 419) {
           setSubmissionError("Your session or CSRF token has expired. Refresh the page and sign in again.");
         } else if (err.status === 422) {
-          const mappedErrors: CourtEditorFieldErrors = {};
-          const validationMessages: string[] = [];
-          for (const [apiField, messages] of Object.entries(err.errors)) {
-            const editorField = apiToEditorField[apiField] ?? (
-              apiField.startsWith("amenities.") ? "amenities" : undefined
-            );
-            const firstMessage = messages.find((message) => message.trim().length > 0);
-            if (editorField && firstMessage) mappedErrors[editorField] = firstMessage;
-            validationMessages.push(
-              ...messages
-                .filter((message) => message.trim().length > 0)
-                .map((message) => `${apiField}: ${message}`),
-            );
-          }
-          setSubmissionFieldErrors(mappedErrors);
-          setSubmissionError(validationMessages.join(" ") || err.message);
+          const validation = mapValidationErrors(err.errors);
+          setSubmissionFieldErrors(validation.fieldErrors);
+          setSubmissionError(validation.message || err.message);
         } else {
           setSubmissionError(err.message);
         }
@@ -322,7 +384,7 @@ export default function AdminCourtManagement() {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900" role="note">
-        New courts are saved to the shared court listings. Edit and Delete are currently unavailable.
+        New courts and edits are saved to the shared court listings. Delete is currently unavailable.
       </div>
 
       {successMessage && (
@@ -446,7 +508,7 @@ export default function AdminCourtManagement() {
                     <td className="whitespace-nowrap px-5 py-4">
                       <div className="flex justify-end gap-1">
                         <Link href={`/courts/${court.id}`} className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">View</Link>
-                        <button type="button" disabled onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">Edit</button>
+                        <button type="button" disabled={editorOpen || isSavingCourt || isRefreshingCreatedCourts} onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50">Edit</button>
                         <button type="button" disabled onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
                       </div>
                     </td>

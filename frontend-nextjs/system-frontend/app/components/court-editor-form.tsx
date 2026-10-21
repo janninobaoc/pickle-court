@@ -175,11 +175,11 @@ export default function CourtEditorForm({
     <section aria-labelledby="court-editor-title" className="rounded-2xl border border-primary/15 bg-white p-5 shadow-soft sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">{initialCourt ? "Demo action" : "Admin action"}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Admin action</p>
           <h2 id="court-editor-title" className="mt-1 text-xl font-bold text-foreground">{initialCourt ? "Edit Court" : "Add Court"}</h2>
           <p className="mt-1 text-sm text-muted">
             {initialCourt
-              ? "Changes apply to this page only and are not saved."
+              ? "Changes are saved to the shared court listings."
               : "New courts are saved to the shared court listings."}
           </p>
         </div>

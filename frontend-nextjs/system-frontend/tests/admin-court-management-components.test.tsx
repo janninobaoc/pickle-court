@@ -6,7 +6,12 @@ import Button from "../app/components/button";
 import CourtEditorForm from "../app/components/court-editor-form";
 import type { Court } from "../app/data/courts";
 import { AdminCourtsApiError } from "../app/lib/admin-courts-api";
-import type { ApiCourt, CreateAdminCourtPayload } from "../app/types/court";
+import type {
+  ApiCourt,
+  CreateAdminCourtPayload,
+  UpdateAdminCourtPayload,
+  UpdateAdminCourtResponse,
+} from "../app/types/court";
 
 type HookHarness = {
   cursor: number;
@@ -27,6 +32,7 @@ const harness = vi.hoisted(() => ({
   useRef: vi.fn(),
   getAdminCourts: vi.fn(),
   createAdminCourt: vi.fn(),
+  updateAdminCourt: vi.fn(),
   refreshUser: vi.fn(),
 }));
 
@@ -51,6 +57,7 @@ vi.mock("../app/lib/admin-courts-api", async (importOriginal) => {
     ...actual,
     getAdminCourts: (...args: unknown[]) => harness.getAdminCourts(...args),
     createAdminCourt: (...args: unknown[]) => harness.createAdminCourt(...args),
+    updateAdminCourt: (...args: unknown[]) => harness.updateAdminCourt(...args),
   };
 });
 
@@ -82,6 +89,18 @@ const createdApiCourt: ApiCourt = {
   opening_time: "07:30:00",
   closing_time: "21:00:00",
   operating_days: null,
+};
+
+const updatedApiCourt: ApiCourt = {
+  ...initialApiCourt,
+  name: "Riverside Updated Court",
+  description: "Renovated indoor courts near the river.",
+  hourly_rate: "425.00",
+  status: "unavailable",
+  location: "Mandaue City",
+  amenities: ["Restrooms", "Seating"],
+  opening_time: "09:00:00",
+  closing_time: "23:00:00",
 };
 
 const validChanges: Omit<Court, "id"> = {
@@ -158,6 +177,13 @@ function findButton(node: ReactNode, label: string) {
   );
 }
 
+function findNativeButton(node: ReactNode, label: string) {
+  return findElement(
+    node,
+    (element) => element.type === "button" && textContent(element.props.children).trim() === label,
+  );
+}
+
 function createButtonClick(element: ReactElement<ElementProps> | undefined) {
   const onClick = propsOf(element as ReactElement<ElementProps>).onClick;
   if (typeof onClick !== "function") {
@@ -208,6 +234,22 @@ async function openCreationEditor(hooks: HookHarness) {
   const editor = findElement(openedTree, (element) => element.type === CourtEditorForm);
   if (!editor) throw new Error("Expected the court editor to open.");
   return { tree: openedTree, editor, props: propsOf(editor) };
+}
+
+async function openEditEditor(hooks: HookHarness) {
+  await loadCourts(hooks);
+  await flushPromises();
+  const tree = renderManagement(hooks);
+  const editButton = findNativeButton(tree, "Edit");
+  if (!editButton) throw new Error("Expected the court Edit button.");
+  const onClick = propsOf(editButton).onClick;
+  if (typeof onClick !== "function") throw new Error("Expected Edit to have an onClick handler.");
+  (onClick as () => void)();
+
+  const openTree = renderManagement(hooks);
+  const editor = findElement(openTree, (element) => element.type === CourtEditorForm);
+  if (!editor) throw new Error("Expected the court editor to open for editing.");
+  return { tree: openTree, editor, props: propsOf(editor) };
 }
 
 function changeEditorValue(
@@ -261,6 +303,15 @@ function findForm(tree: ReactNode) {
   return form;
 }
 
+async function submitEditorForm(hooks: HookHarness, props: ElementProps) {
+  const tree = renderEditor(hooks, props);
+  const onSubmit = propsOf(findForm(tree)).onSubmit;
+  if (typeof onSubmit !== "function") throw new Error("Expected the editor submit handler.");
+  await (onSubmit as (event: { preventDefault: () => void }) => Promise<void>)({
+    preventDefault: vi.fn(),
+  });
+}
+
 describe("Admin Court Management creation workflow", () => {
   let managementHooks: HookHarness;
   let editorHooks: HookHarness;
@@ -310,6 +361,11 @@ describe("Admin Court Management creation workflow", () => {
 
     harness.getAdminCourts.mockResolvedValue([initialApiCourt]);
     harness.createAdminCourt.mockResolvedValue({ status: 200, message: "Court created" });
+    harness.updateAdminCourt.mockResolvedValue({
+      status: 200,
+      message: "Court updated",
+      data: updatedApiCourt,
+    } satisfies UpdateAdminCourtResponse);
     harness.refreshUser.mockResolvedValue(undefined);
   });
 
@@ -363,7 +419,7 @@ describe("Admin Court Management creation workflow", () => {
     expect(harness.createAdminCourt).not.toHaveBeenCalled();
   });
 
-  it("opens the create editor and keeps navigation, filters, Edit, and Delete behavior intact", async () => {
+  it("opens the create editor, preserves navigation and filters, enables Edit, and keeps Delete disabled", async () => {
     const tree = await loadCourts(managementHooks);
     const loadedTree = renderManagement(managementHooks);
     expect(textContent(tree)).toContain("Loading courts...");
@@ -378,11 +434,163 @@ describe("Admin Court Management creation workflow", () => {
     expect(findElement(openTree, (element) => propsOf(element).id === "admin-court-search")).toBeDefined();
     expect(allElements(openTree).some((element) => propsOf(element).href === "/courts/17")).toBe(true);
 
-    const actionButtons = allElements(openTree).filter(
+    const loadedActionButtons = allElements(loadedTree).filter(
       (element) => element.type === "button" && ["Edit", "Delete"].includes(textContent(element.props.children).trim()),
     );
-    expect(actionButtons).toHaveLength(2);
-    expect(actionButtons.every((element) => propsOf(element).disabled === true)).toBe(true);
+    expect(loadedActionButtons).toHaveLength(2);
+    expect(propsOf(findNativeButton(loadedTree, "Edit") as ReactElement<ElementProps>).disabled).toBe(false);
+    expect(propsOf(findNativeButton(loadedTree, "Delete") as ReactElement<ElementProps>).disabled).toBe(true);
+
+    const openActionButtons = allElements(openTree).filter(
+      (element) => element.type === "button" && ["Edit", "Delete"].includes(textContent(element.props.children).trim()),
+    );
+    expect(openActionButtons).toHaveLength(2);
+    expect(openActionButtons.every((element) => propsOf(element).disabled === true)).toBe(true);
+  });
+
+  it("opens Edit with the selected court's persisted values prefilled", async () => {
+    const { props } = await openEditEditor(managementHooks);
+
+    expect(props.initialCourt).toMatchObject({
+      id: "17",
+      name: "Riverside Indoor Court",
+      category: "Indoor",
+      pricePerHour: 350.5,
+      location: "Cebu City",
+      available: true,
+    });
+    const form = renderEditor(editorHooks, props);
+    expect(textContent(form)).toContain("Edit Court");
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-name") as ReactElement<ElementProps>).value).toBe("Riverside Indoor Court");
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-rate") as ReactElement<ElementProps>).value).toBe("350.5");
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-status") as ReactElement<ElementProps>).value).toBe("true");
+  });
+
+  it("sends mapped values to updateAdminCourt and replaces the selected court with Laravel's saved response", async () => {
+    harness.getAdminCourts.mockResolvedValueOnce([initialApiCourt, createdApiCourt]);
+    const { props } = await openEditEditor(managementHooks);
+    changeEditorValue(editorHooks, props, "court-name", "Riverside Renovated Court");
+    changeEditorValue(editorHooks, props, "court-location", "Mandaue City");
+    changeEditorValue(editorHooks, props, "court-description", "Renovated indoor courts near the river.");
+    changeEditorValue(editorHooks, props, "court-type", "Indoor");
+    changeEditorValue(editorHooks, props, "court-rate", "425");
+    changeEditorValue(editorHooks, props, "court-opening-time", "09:00");
+    changeEditorValue(editorHooks, props, "court-closing-time", "23:00");
+    changeEditorValue(editorHooks, props, "court-status", "false");
+
+    await submitEditorForm(editorHooks, props);
+
+    const expectedPayload: UpdateAdminCourtPayload = {
+      name: "Riverside Renovated Court",
+      type: "Indoor",
+      hourly_rate: 425,
+      status: "unavailable",
+      description: "Renovated indoor courts near the river.",
+      location: "Mandaue City",
+      amenities: ["Parking", "Lighting"],
+      opening_time: "09:00",
+      closing_time: "23:00",
+    };
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+    expect(harness.updateAdminCourt).toHaveBeenCalledWith("17", expectedPayload);
+
+    const tree = renderManagement(managementHooks);
+    expect(findElement(tree, (element) => element.type === CourtEditorForm)).toBeUndefined();
+    expect(textContent(tree)).toContain("Court updated successfully.");
+    expect(textContent(tree)).toContain("Riverside Updated Court");
+    expect(textContent(tree)).not.toContain("Riverside Indoor Court");
+    expect(textContent(tree)).toContain("Mandaue City");
+    expect(textContent(tree)).toContain("New Harbor Court");
+    expect(textContent(tree)).toContain("2 courts");
+    expect(harness.getAdminCourts).toHaveBeenCalledTimes(1);
+    expect(harness.createAdminCourt).not.toHaveBeenCalled();
+  });
+
+  it("shows the update pending state and prevents duplicate PUT submissions", async () => {
+    const request = deferred<UpdateAdminCourtResponse>();
+    harness.updateAdminCourt.mockReturnValueOnce(request.promise);
+    const { props } = await openEditEditor(managementHooks);
+
+    const firstSubmit = submitEditorForm(editorHooks, props);
+    await flushPromises();
+    const pendingTree = renderManagement(managementHooks);
+    const pendingEditor = findElement(pendingTree, (element) => element.type === CourtEditorForm);
+    expect(pendingEditor).toBeDefined();
+    expect(propsOf(pendingEditor as ReactElement<ElementProps>).isSubmitting).toBe(true);
+    expect(textContent(renderEditor(editorHooks, propsOf(pendingEditor as ReactElement<ElementProps>)))).toContain("Saving court...");
+    expect(propsOf(findNativeButton(pendingTree, "Edit") as ReactElement<ElementProps>).disabled).toBe(true);
+
+    await (props.onSave as (changes: Omit<Court, "id">) => Promise<void>)(validChanges);
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+
+    request.resolve({ status: 200, message: "Court updated", data: updatedApiCourt });
+    await firstSubmit;
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [401, "Your session has expired. Checking authentication..."],
+    [403, "You do not have permission to update courts."],
+    [419, "Your session or CSRF token has expired. Refresh the page and sign in again."],
+  ])("keeps the editor and entered values after update HTTP %i", async (status, expectedMessage) => {
+    harness.updateAdminCourt.mockRejectedValueOnce(new AdminCourtsApiError("Update denied", status));
+    const { props } = await openEditEditor(managementHooks);
+    changeEditorValue(editorHooks, props, "court-name", "My corrected court name");
+    await submitEditorForm(editorHooks, props);
+
+    const tree = renderManagement(managementHooks);
+    const editor = findElement(tree, (element) => element.type === CourtEditorForm);
+    expect(editor).toBeDefined();
+    expect(propsOf(editor as ReactElement<ElementProps>).submissionError).toBe(expectedMessage);
+    const form = renderEditor(editorHooks, propsOf(editor as ReactElement<ElementProps>));
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-name") as ReactElement<ElementProps>).value).toBe("My corrected court name");
+    expect(textContent(tree)).not.toContain("Court updated successfully.");
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+    expect(harness.createAdminCourt).not.toHaveBeenCalled();
+    if (status === 401) expect(harness.refreshUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps HTTP 422 update validation feedback to fields and retains edited values", async () => {
+    harness.updateAdminCourt.mockRejectedValueOnce(
+      new AdminCourtsApiError("The given data was invalid.", 422, {
+        hourly_rate: ["The hourly rate is too high."],
+        "amenities.0": ["The selected amenity is invalid."],
+      }),
+    );
+    const { props } = await openEditEditor(managementHooks);
+    changeEditorValue(editorHooks, props, "court-name", "Corrected Riverside Court");
+    await submitEditorForm(editorHooks, props);
+
+    const tree = renderManagement(managementHooks);
+    const editor = findElement(tree, (element) => element.type === CourtEditorForm);
+    expect(editor).toBeDefined();
+    const editorProps = propsOf(editor as ReactElement<ElementProps>);
+    expect(editorProps.serverFieldErrors).toMatchObject({
+      pricePerHour: "The hourly rate is too high.",
+      amenities: "The selected amenity is invalid.",
+    });
+    expect(editorProps.submissionError).toContain("hourly_rate: The hourly rate is too high.");
+    const form = renderEditor(editorHooks, editorProps);
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-name") as ReactElement<ElementProps>).value).toBe("Corrected Riverside Court");
+    expect(textContent(form)).toContain("The hourly rate is too high.");
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the editor after a network failure and does not retry the PUT", async () => {
+    harness.updateAdminCourt.mockRejectedValueOnce(new TypeError("Network unavailable"));
+    const { props } = await openEditEditor(managementHooks);
+    changeEditorValue(editorHooks, props, "court-name", "Unsaved Riverside Changes");
+    await submitEditorForm(editorHooks, props);
+
+    const tree = renderManagement(managementHooks);
+    const editor = findElement(tree, (element) => element.type === CourtEditorForm);
+    expect(editor).toBeDefined();
+    expect(propsOf(editor as ReactElement<ElementProps>).submissionError).toContain("Network unavailable");
+    const form = renderEditor(editorHooks, propsOf(editor as ReactElement<ElementProps>));
+    expect(propsOf(findElement(form, (element) => propsOf(element).id === "court-name") as ReactElement<ElementProps>).value).toBe("Unsaved Riverside Changes");
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+    expect(harness.getAdminCourts).toHaveBeenCalledTimes(1);
+    expect(harness.createAdminCourt).not.toHaveBeenCalled();
   });
 
   it("maps editor values, waits for persisted refresh, then closes with success feedback", async () => {

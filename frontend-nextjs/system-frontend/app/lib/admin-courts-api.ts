@@ -2,6 +2,8 @@ import type {
     ApiCourt,
     CreateAdminCourtPayload,
     CreateAdminCourtResponse,
+    UpdateAdminCourtPayload,
+    UpdateAdminCourtResponse,
 } from "../types/court";
 import { fetchWithCsrf, type ValidationErrors } from "./auth-api";
 
@@ -26,6 +28,57 @@ function isValidationErrors(value: unknown): value is ValidationErrors {
             Array.isArray(fieldErrors) &&
             fieldErrors.every((message) => typeof message === "string"),
     );
+}
+
+function isApiCourt(value: unknown): value is ApiCourt {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    const court = value as Record<string, unknown>;
+    const isNullableString = (field: unknown) => field === null || typeof field === "string";
+    const isStringArrayOrNull = (field: unknown) =>
+        field === null ||
+        (Array.isArray(field) && field.every((item) => typeof item === "string"));
+
+    return (
+        typeof court.id === "number" &&
+        typeof court.name === "string" &&
+        typeof court.type === "string" &&
+        isNullableString(court.description) &&
+        (typeof court.hourly_rate === "string" || typeof court.hourly_rate === "number") &&
+        typeof court.status === "string" &&
+        isNullableString(court.location) &&
+        isStringArrayOrNull(court.amenities) &&
+        isNullableString(court.opening_time) &&
+        isNullableString(court.closing_time) &&
+        isStringArrayOrNull(court.operating_days) &&
+        isNullableString(court.image) &&
+        isNullableString(court.created_at) &&
+        isNullableString(court.updated_at)
+    );
+}
+
+async function getResponseError(
+    response: Response,
+    fallbackMessage: string,
+): Promise<AdminCourtsApiError> {
+    const body: unknown = await response.json().catch(() => null);
+    const responseBody =
+        body !== null && typeof body === "object" && !Array.isArray(body)
+            ? (body as { message?: unknown; errors?: unknown })
+            : null;
+    const responseMessage = responseBody?.message;
+    const message =
+        typeof responseMessage === "string" && responseMessage.trim().length > 0
+            ? responseMessage
+            : fallbackMessage;
+    const errors =
+        response.status === 422 && isValidationErrors(responseBody?.errors)
+            ? responseBody.errors
+            : {};
+
+    return new AdminCourtsApiError(message, response.status, errors);
 }
 
 export async function getAdminCourts(): Promise<ApiCourt[]> {
@@ -72,24 +125,10 @@ export async function createAdminCourt(
     });
 
     if (!response.ok) {
-        const body: unknown = await response.json().catch(() => null);
-        const responseBody =
-            body !== null && typeof body === "object" && !Array.isArray(body)
-                ? (body as { message?: unknown; errors?: unknown })
-                : null;
-
-        const responseMessage = responseBody?.message;
-        const message =
-            typeof responseMessage === "string" && responseMessage.trim().length > 0
-                ? responseMessage
-                : `Failed to create admin court (${response.status})`;
-
-        const errors =
-            response.status === 422 && isValidationErrors(responseBody?.errors)
-                ? responseBody.errors
-                : {};
-
-        throw new AdminCourtsApiError(message, response.status, errors);
+        throw await getResponseError(
+            response,
+            `Failed to create admin court (${response.status})`,
+        );
     }
 
     let data: unknown;
@@ -125,5 +164,62 @@ export async function createAdminCourt(
     return {
         status: responseBody.status,
         message: responseBody.message,
+    };
+}
+
+export async function updateAdminCourt(
+    id: string | number,
+    payload: UpdateAdminCourtPayload,
+): Promise<UpdateAdminCourtResponse> {
+    const response = await fetchWithCsrf(`/admin/courts/${encodeURIComponent(String(id))}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw await getResponseError(
+            response,
+            `Failed to update admin court (${response.status})`,
+        );
+    }
+
+    let data: unknown;
+
+    try {
+        data = await response.json();
+    } catch {
+        throw new AdminCourtsApiError(
+            `Invalid court update response (${response.status})`,
+            response.status,
+        );
+    }
+
+    if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        throw new AdminCourtsApiError(
+            `Invalid court update response (${response.status})`,
+            response.status,
+        );
+    }
+
+    const responseBody = data as Record<string, unknown>;
+
+    if (
+        typeof responseBody.status !== "number" ||
+        typeof responseBody.message !== "string" ||
+        !isApiCourt(responseBody.data)
+    ) {
+        throw new AdminCourtsApiError(
+            `Invalid court update response (${response.status})`,
+            response.status,
+        );
+    }
+
+    return {
+        status: responseBody.status,
+        message: responseBody.message,
+        data: responseBody.data,
     };
 }
