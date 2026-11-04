@@ -89,8 +89,6 @@ export default function LoginForm({ returnTo }: { returnTo?: string | string[]; 
           }
         } else if (error.status === 401) {
           toast.error("Invalid email or password.");
-        } else if (error.status === 419) {
-          toast.error("Your session expired. Please try again.");
         } else {
           toast.error("Login failed. Please try again.");
         }

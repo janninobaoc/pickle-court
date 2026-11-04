@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCourts } from "../app/lib/courts-api";
+import { getCourtById, getCourts } from "../app/lib/courts-api";
 
 const apiCourt = {
     id: 17,
@@ -32,17 +32,23 @@ describe("public courts API helper", () => {
         fetchMock.mockReset();
     });
 
-    it("gets real court records from the existing public GET /api/courts endpoint", async () => {
+    it.each([
+        ["http://localhost:8000", "http://localhost:8000/api/courts"],
+        ["http://localhost:8000/api", "http://localhost:8000/api/courts"],
+        ["http://localhost:8000/api/api/", "http://localhost:8000/api/courts"],
+    ])("gets public court records from %s with one API prefix", async (baseUrl, expectedUrl) => {
+        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", baseUrl);
         fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([apiCourt]), { status: 200 }));
         await expect(getCourts()).resolves.toEqual([apiCourt]);
-        expect(fetchMock).toHaveBeenCalledWith("http://localhost:8000/api/courts", {
+        expect(fetchMock).toHaveBeenCalledWith(expectedUrl, {
             method: "GET",
-            credentials: "include",
+            credentials: "omit",
             headers: {
                 Accept: "application/json",
             },
             cache: "no-store",
         });
+        expect(new Headers(fetchMock.mock.calls[0][1].headers).has("Authorization")).toBe(false);
     });
 
     it("rejects an unsuccessful backend response", async () => {
@@ -53,5 +59,40 @@ describe("public courts API helper", () => {
     it("rejects a malformed non-array response", async () => {
         fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: [apiCourt] }), { status: 200 }));
         await expect(getCourts()).rejects.toThrow("Invalid courts response");
+    });
+
+    it.each([
+        ["http://localhost:8000", "http://localhost:8000/api/courts/17"],
+        ["http://localhost:8000/api", "http://localhost:8000/api/courts/17"],
+    ])("gets a public court detail from %s with one API prefix", async (baseUrl, expectedUrl) => {
+        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", baseUrl);
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(apiCourt), { status: 200 }));
+
+        await expect(getCourtById("17")).resolves.toEqual(apiCourt);
+        expect(fetchMock).toHaveBeenCalledWith(expectedUrl, {
+            method: "GET",
+            credentials: "omit",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+        });
+        expect(new Headers(fetchMock.mock.calls[0][1].headers).has("Authorization")).toBe(false);
+    });
+
+    it("preserves the public court detail not-found behavior", async () => {
+        fetchMock.mockResolvedValueOnce(new Response("{}", { status: 404 }));
+        await expect(getCourtById("missing")).resolves.toBeNull();
+    });
+
+    it("rejects other unsuccessful court detail responses", async () => {
+        fetchMock.mockResolvedValueOnce(new Response("{}", { status: 503 }));
+        await expect(getCourtById("17")).rejects.toThrow("Failed to fetch court by ID (503)");
+    });
+
+    it("preserves the missing API base URL error for both public requests", async () => {
+        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", undefined);
+
+        await expect(getCourts()).rejects.toThrow("API base URL is not defined in environment variables.");
+        await expect(getCourtById("17")).rejects.toThrow("API base URL is not defined in environment variables.");
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

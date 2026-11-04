@@ -529,9 +529,9 @@ describe("Admin Court Management creation workflow", () => {
   });
 
   it.each([
-    [401, "Your session has expired. Checking authentication..."],
+    [401, "Your authentication could not be verified. Checking authentication..."],
     [403, "You do not have permission to update courts."],
-    [419, "Your session or CSRF token has expired. Refresh the page and sign in again."],
+    [419, "Update denied"],
   ])("keeps the editor and entered values after update HTTP %i", async (status, expectedMessage) => {
     harness.updateAdminCourt.mockRejectedValueOnce(new AdminCourtsApiError("Update denied", status));
     const { props } = await openEditEditor(managementHooks);
@@ -548,6 +548,7 @@ describe("Admin Court Management creation workflow", () => {
     expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
     expect(harness.createAdminCourt).not.toHaveBeenCalled();
     if (status === 401) expect(harness.refreshUser).toHaveBeenCalledTimes(1);
+    else expect(harness.refreshUser).not.toHaveBeenCalled();
   });
 
   it("maps HTTP 422 update validation feedback to fields and retains edited values", async () => {
@@ -724,9 +725,9 @@ describe("Admin Court Management creation workflow", () => {
   });
 
   it.each([
-    [401, "Your session has expired. Checking authentication..."],
+    [401, "Your authentication could not be verified. Checking authentication..."],
     [403, "You do not have permission to create courts."],
-    [419, "Your session or CSRF token has expired. Refresh the page and sign in again."],
+    [419, "Request denied"],
   ])("keeps the editor open and shows HTTP %i feedback", async (status, expectedMessage) => {
     harness.createAdminCourt.mockRejectedValueOnce(
       new AdminCourtsApiError("Request denied", status),

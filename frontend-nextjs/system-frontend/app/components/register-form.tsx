@@ -102,8 +102,6 @@ export default function RegisterForm({ returnTo }: { returnTo?: string }) {
           if (!Object.values(fieldErrors).some(Boolean)) {
             toast.error(error.message || "Please check your registration details.");
           }
-        } else if (error.status === 419) {
-          toast.error("Your session expired. Please refresh and try again.");
         } else {
           toast.error("Registration failed. Please try again.");
         }

@@ -58,7 +58,7 @@ export default function BookingForm({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { status, refreshUser } = useAuth();
+  const { status, refreshUser, clearAuthenticatedUser } = useAuth();
   const today = useSyncExternalStore(subscribeToLocalDay, getLocalDateString, getServerLocalDay);
   const initialSelection = useMemo(
     () => restoreBookingSelection(selectionParams, court),
@@ -281,9 +281,8 @@ export default function BookingForm({
     } catch (error) {
       if (error instanceof BookingApiError) {
         if (error.status === 401) {
+          clearAuthenticatedUser();
           loginForBooking();
-        } else if (error.status === 419) {
-          toast.error("Your session expired. Please refresh and try again.");
         } else if (error.status === 422) {
           setApiErrors(error.errors);
           toast.error(Object.keys(error.errors).length > 0

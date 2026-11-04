@@ -13,9 +13,11 @@ class AuthController extends Controller
     public function register(RegisterRequest $request, AuthService $authService): JsonResponse
     {
         $user = $authService->register($request->validated());
+        $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Registration successful.',
+            'token' => $token,
             'user' => UserResource::make($user)->resolve($request),
         ], 201);
     }
@@ -30,8 +32,11 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $token = $user->createToken('auth-token')->plainTextToken;
+
         return response()->json([
             'message' => 'Login successful.',
+            'token' => $token,
             'user' => UserResource::make($user)->resolve($request),
         ]);
     }

@@ -1,4 +1,5 @@
 import { getManilaDateString } from "./booking-utils";
+import { getAuthToken } from "./auth-token";
 
 export type CourtAvailabilityReason =
     | "court_unavailable"
@@ -29,11 +30,14 @@ export interface CourtAvailability {
     slots: CourtAvailabilitySlot[];
 }
 
-const API_BASE_URL = (
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000/api"
-).replace(/\/+$/, "");
+function getApiBaseUrl(): string {
+    const configuredBaseUrl =
+        process.env.NEXT_PUBLIC_API_BASE_URL ||
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:8000/api";
+    const normalizedBaseUrl = configuredBaseUrl.replace(/\/+$/, "");
+    return `${normalizedBaseUrl.replace(/(?:\/api)+$/i, "")}/api`;
+}
 
 export class CourtAvailabilityApiError extends Error {
     constructor(public readonly status: number, message: string) {
@@ -147,7 +151,7 @@ function getAvailabilityFailure(status: number): string {
 }
 
 function getRescheduleAvailabilityFailure(status: number, responseBody: unknown): string {
-    if (status === 401) return "Your session could not be verified. Please log in again.";
+    if (status === 401) return "Your authentication could not be verified. Please log in again.";
     if (status === 403) return "You are not allowed to view availability for this booking.";
     if (status === 404) return "Booking not found.";
     if (status === 409) {
@@ -156,7 +160,6 @@ function getRescheduleAvailabilityFailure(status: number, responseBody: unknown)
         if (message === "This booking cannot be rescheduled.") return message;
         return "This booking cannot be rescheduled right now.";
     }
-    if (status === 419) return "Your session expired. Please refresh the page and try again.";
     if (status === 422) return "Choose a valid booking date from today onward.";
     return "Unable to load court availability. Please try again.";
 }
@@ -177,9 +180,10 @@ export async function getCourtAvailability(
 
     try {
         const query = new URLSearchParams({ date });
-        const response = await fetch(`${API_BASE_URL}/courts/${courtId}/availability?${query.toString()}`, {
+        const response = await fetch(`${getApiBaseUrl()}/courts/${courtId}/availability?${query.toString()}`, {
             method: "GET",
             cache: "no-store",
+            credentials: "omit",
             headers: { Accept: "application/json" },
             signal,
         });
@@ -203,7 +207,7 @@ export async function getCourtAvailability(
     }
 }
 
-/** Fetch availability for rescheduling; the session-authenticated backend excludes this owned booking. */
+/** Fetch availability for rescheduling; the backend excludes this owned booking. */
 export async function getBookingRescheduleAvailability(
     bookingId: number,
     date: string,
@@ -218,11 +222,17 @@ export async function getBookingRescheduleAvailability(
 
     try {
         const query = new URLSearchParams({ date });
-        const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/availability?${query.toString()}`, {
+        const headers = new Headers({ Accept: "application/json" });
+        const token = getAuthToken();
+        if (token) {
+            headers.set("Authorization", `Bearer ${token}`);
+        }
+
+        const response = await fetch(`${getApiBaseUrl()}/bookings/${bookingId}/availability?${query.toString()}`, {
             method: "GET",
             cache: "no-store",
-            credentials: "include",
-            headers: { Accept: "application/json" },
+            credentials: "omit",
+            headers,
             signal,
         });
 

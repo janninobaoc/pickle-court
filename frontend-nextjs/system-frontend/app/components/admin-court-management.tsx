@@ -108,7 +108,7 @@ export default function AdminCourtManagement() {
 
         if (err instanceof AdminCourtsApiError) {
           if (err.status === 401) {
-            setError("Your session has expired. Checking authentication...");
+            setError("Your authentication could not be verified. Checking authentication...");
             void refreshUser();
             return;
           }
@@ -199,8 +199,8 @@ export default function AdminCourtManagement() {
       if (err instanceof AdminCourtsApiError && err.status === 401) {
         setRefreshCreatedCourtsError(
           courtWasSaved
-            ? "The court was saved, but your session expired before the list could refresh. Sign in again, then retry the list refresh."
-            : "Your session expired before the court list could be verified. Checking authentication; retry the list refresh before submitting again.",
+            ? "The court was saved, but your authentication could not be confirmed before the list could refresh. Sign in again, then retry the list refresh."
+            : "Your authentication could not be confirmed before the court list could be verified. Checking authentication; retry the list refresh before submitting again.",
         );
         void refreshUser();
       } else if (err instanceof AdminCourtsApiError && err.status === 403) {
@@ -246,12 +246,10 @@ export default function AdminCourtManagement() {
       } catch (err) {
         if (err instanceof AdminCourtsApiError) {
           if (err.status === 401) {
-            setSubmissionError("Your session has expired. Checking authentication...");
+            setSubmissionError("Your authentication could not be verified. Checking authentication...");
             void refreshUser();
           } else if (err.status === 403) {
             setSubmissionError("You do not have permission to update courts.");
-          } else if (err.status === 419) {
-            setSubmissionError("Your session or CSRF token has expired. Refresh the page and sign in again.");
           } else if (err.status === 422) {
             const validation = mapValidationErrors(err.errors);
             setSubmissionFieldErrors(validation.fieldErrors);
@@ -261,14 +259,10 @@ export default function AdminCourtManagement() {
           }
         } else if (err instanceof AuthApiError) {
           if (err.status === 401) {
-            setSubmissionError("Your session has expired. Checking authentication...");
+            setSubmissionError("Your authentication could not be verified. Checking authentication...");
             void refreshUser();
           } else {
-            setSubmissionError(
-              err.status === 419
-                ? "Your session or CSRF token has expired. Refresh the page and sign in again."
-                : err.message,
-            );
+            setSubmissionError(err.message);
           }
         } else {
           setSubmissionError(
@@ -303,12 +297,10 @@ export default function AdminCourtManagement() {
     } catch (err) {
       if (err instanceof AdminCourtsApiError) {
         if (err.status === 401) {
-          setSubmissionError("Your session has expired. Checking authentication...");
+          setSubmissionError("Your authentication could not be verified. Checking authentication...");
           void refreshUser();
         } else if (err.status === 403) {
           setSubmissionError("You do not have permission to create courts.");
-        } else if (err.status === 419) {
-          setSubmissionError("Your session or CSRF token has expired. Refresh the page and sign in again.");
         } else if (err.status === 422) {
           const validation = mapValidationErrors(err.errors);
           setSubmissionFieldErrors(validation.fieldErrors);
@@ -318,15 +310,11 @@ export default function AdminCourtManagement() {
         }
       } else if (err instanceof AuthApiError) {
         if (err.status === 401) {
-          setSubmissionError("Your session has expired. Checking authentication...");
+          setSubmissionError("Your authentication could not be verified. Checking authentication...");
           void refreshUser();
           return;
         }
-        setSubmissionError(
-          err.status === 419
-            ? "Your session or CSRF token has expired. Refresh the page and sign in again."
-            : err.message,
-        );
+        setSubmissionError(err.message);
       } else {
         creationOutcomeRef.current = "unknown";
         setCreationOutcome("unknown");
@@ -509,7 +497,7 @@ export default function AdminCourtManagement() {
                       <div className="flex justify-end gap-1">
                         <Link href={`/courts/${court.id}`} className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">View</Link>
                         <button type="button" disabled={editorOpen || isSavingCourt || isRefreshingCreatedCourts} onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50">Edit</button>
-                        <button type="button" disabled onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
+                        <button type="button" onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
                       </div>
                     </td>
                   </tr>

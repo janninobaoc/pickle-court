@@ -457,7 +457,6 @@ export default function BookingCard({
                   Refresh bookings
                 </button>
               )}
-              {cancelError.status === 419 && <p className="mt-1 text-xs">You can retry the cancellation.</p>}
             </div>
           )}
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -476,7 +475,7 @@ export default function BookingCard({
               disabled={isCancelling || isRescheduling || !isBookingCancellable(booking, now)}
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isCancelling ? "Cancelling..." : cancelError?.status === 419 ? "Retry Cancellation" : "Yes, Cancel Booking"}
+              {isCancelling ? "Cancelling..." : "Yes, Cancel Booking"}
             </button>
           </div>
         </div>
@@ -559,13 +558,12 @@ export default function BookingCard({
             <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
               <p>{rescheduleError.message}</p>
               {rescheduleError.status === 404 && <button type="button" onClick={onRefreshBookings} className="mt-2 font-semibold underline">Refresh bookings</button>}
-              {rescheduleError.status === 419 && <p className="mt-1 text-xs">You can retry the reschedule.</p>}
             </div>
           )}
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button ref={keepRescheduleButtonRef} type="button" onClick={() => setIsRescheduleOpen(false)} disabled={isRescheduling} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-4 text-sm font-semibold hover:bg-[#f8faf7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">Keep Current Booking</button>
             <button type="submit" disabled={isRescheduling || isCancelling || !canReschedule || !availability || availabilityLoading || !selectedSlot || !dateIsValid || (rescheduleDate === booking.booking_date && rescheduleStart === booking.start_time.slice(0, 5) && rescheduleEnd === booking.end_time.slice(0, 5))} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-[#103B34] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60">
-              {isRescheduling ? "Rescheduling..." : rescheduleError?.status === 419 ? "Retry Reschedule" : "Confirm Reschedule"}
+              {isRescheduling ? "Rescheduling..." : "Confirm Reschedule"}
             </button>
           </div>
         </form>

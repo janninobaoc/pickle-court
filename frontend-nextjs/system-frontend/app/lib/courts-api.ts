@@ -1,16 +1,20 @@
 import { ApiCourt } from "../types/court";
 
-
-export async function getCourts(): Promise<ApiCourt[]> {
+function getApiBaseUrl(): string {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
     if (!baseUrl) {
         throw new Error("API base URL is not defined in environment variables.");
     }
 
-    const response = await fetch(`${baseUrl}/courts`, {
+    const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+    return `${normalizedBaseUrl.replace(/(?:\/api)+$/i, "")}/api`;
+}
+
+export async function getCourts(): Promise<ApiCourt[]> {
+    const response = await fetch(`${getApiBaseUrl()}/courts`, {
         method: "GET",
-        credentials: "include",
+        credentials: "omit",
         headers: {
             Accept: "application/json",
         },
@@ -31,15 +35,9 @@ export async function getCourts(): Promise<ApiCourt[]> {
 }
 
 export async function getCourtById(id: string): Promise<ApiCourt | null> {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-    if (!baseUrl) {
-        throw new Error("API base URL is not defined in environment variables.");
-    }
-
-    const response = await fetch(`${baseUrl}/courts/${id}`, {
+    const response = await fetch(`${getApiBaseUrl()}/courts/${id}`, {
         method: "GET",
-        credentials: "include",
+        credentials: "omit",
         headers: {
             Accept: "application/json",
         },

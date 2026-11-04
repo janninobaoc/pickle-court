@@ -299,10 +299,9 @@ export default function BookingList() {
   }
 
   if (loadError) {
-    const sessionExpired = loadError.status === 419;
     return (
       <section role="alert" className="rounded-3xl border border-amber-200 bg-white px-5 py-12 text-center shadow-sm sm:py-16">
-        <h2 className="text-xl font-bold text-foreground">{sessionExpired ? "Your session expired" : "We couldn’t load your bookings"}</h2>
+        <h2 className="text-xl font-bold text-foreground">We couldn’t load your bookings</h2>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted">{loadError.message}</p>
         <Button type="button" onClick={retryBookings} className="mt-5 rounded-xl">Retry</Button>
       </section>

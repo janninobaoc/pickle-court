@@ -1,10 +1,32 @@
-const API_BASE_URL = (
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000/api"
-).replace(/\/+$/, "");
+import { getAuthToken } from "./auth-token";
 
-const BACKEND_ORIGIN = new URL(API_BASE_URL).origin;
+function getApiBaseUrl(): string {
+    const configuredBaseUrl =
+        process.env.NEXT_PUBLIC_API_BASE_URL ||
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:8000/api";
+    const normalizedBaseUrl = configuredBaseUrl.replace(/\/+$/, "");
+    return `${normalizedBaseUrl.replace(/(?:\/api)+$/i, "")}/api`;
+}
+
+function authenticatedRequest(path: string, init: RequestInit): Promise<Response> {
+    const endpoint = path.startsWith("/") ? path : `/${path}`;
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+
+    const token = getAuthToken();
+    if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+    } else {
+        headers.delete("Authorization");
+    }
+
+    return fetch(`${getApiBaseUrl()}${endpoint}`, {
+        ...init,
+        credentials: "omit",
+        headers,
+    });
+}
 
 export interface CreateBookingPayload {
     court_id: number;
@@ -102,45 +124,6 @@ export function normalizeBookingTime(value: string): string {
     return `${match[1]}:${match[2]}:${String(seconds).padStart(2, "0")}`;
 }
 
-function getXsrfToken(): string {
-    const cookie = document.cookie
-        .split("; ")
-        .find((item) => item.startsWith("XSRF-TOKEN="));
-
-    if (!cookie) {
-        throw new BookingApiError(
-            419,
-            "Your session expired. Please refresh and try again.",
-        );
-    }
-
-    try {
-        return decodeURIComponent(cookie.substring("XSRF-TOKEN=".length));
-    } catch {
-        throw new BookingApiError(
-            419,
-            "Your session expired. Please refresh and try again.",
-        );
-    }
-}
-
-async function initializeCsrf(): Promise<void> {
-    const response = await fetch(`${BACKEND_ORIGIN}/sanctum/csrf-cookie`, {
-        method: "GET",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-        throw new BookingApiError(
-            response.status,
-            response.status === 419
-                ? "Your session expired. Please refresh and try again."
-                : "Unable to initialize a secure session. Please try again.",
-        );
-    }
-}
-
 function getValidationErrors(value: unknown): BookingValidationErrors {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
         return {};
@@ -161,8 +144,6 @@ function getFailureMessage(status: number, serverMessage: unknown): string {
     switch (status) {
         case 401:
             return "Please log in to book a court.";
-        case 419:
-            return "Your session expired. Please refresh and try again.";
         case 404:
             return "The requested resource could not be found.";
         case 409: {
@@ -272,13 +253,11 @@ function parseBooking(value: unknown): Booking {
     };
 }
 
-/** Fetch the authenticated user's bookings without modifying booking or session state. */
+/** Fetch the authenticated user's bookings without modifying booking state. */
 export async function getMyBookings(): Promise<Booking[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/bookings`, {
+        const response = await authenticatedRequest("/bookings", {
             method: "GET",
-            credentials: "include",
-            headers: { Accept: "application/json" },
             cache: "no-store",
         });
         const body = await readJson(response);
@@ -286,9 +265,7 @@ export async function getMyBookings(): Promise<Booking[]> {
         if (!response.ok) {
             const message = response.status === 401
                 ? "Please log in to view your bookings."
-                : response.status === 419
-                    ? "Your session expired. Please refresh and try again."
-                    : "Unable to load your bookings. Please try again.";
+                : "Unable to load your bookings. Please try again.";
             throw new BookingApiError(response.status, message);
         }
 
@@ -304,8 +281,7 @@ export async function getMyBookings(): Promise<Booking[]> {
 }
 
 function getCancellationFailureMessage(status: number, serverMessage: unknown): string {
-    if (status === 401) return "Your session could not be verified. Please log in again.";
-    if (status === 419) return "Your session expired. Please refresh the page and try again.";
+    if (status === 401) return "Your authentication could not be verified. Please log in again.";
     if (status === 404) return "This booking could not be found. Refresh your bookings.";
     if (status === 409) {
         const safeMessages = new Set([
@@ -328,14 +304,8 @@ export async function cancelBooking(bookingId: number): Promise<CancelBookingRes
     }
 
     try {
-        await initializeCsrf();
-        const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
+        const response = await authenticatedRequest(`/bookings/${bookingId}`, {
             method: "DELETE",
-            credentials: "include",
-            headers: {
-                Accept: "application/json",
-                "X-XSRF-TOKEN": getXsrfToken(),
-            },
         });
         const body = await readJson(response);
 
@@ -373,8 +343,7 @@ export async function cancelBooking(bookingId: number): Promise<CancelBookingRes
 }
 
 function getRescheduleFailureMessage(status: number): string {
-    if (status === 401) return "Your session could not be verified. Please log in again.";
-    if (status === 419) return "Your session expired. Please refresh the page and try again.";
+    if (status === 401) return "Your authentication could not be verified. Please log in again.";
     if (status === 404) return "This booking could not be found. Refresh your bookings.";
     if (status === 409) return "This booking conflicts with the court's schedule or availability. Choose another time.";
     if (status === 422) return "Please check the selected date and time.";
@@ -400,14 +369,10 @@ export async function rescheduleBooking(
     }
 
     try {
-        await initializeCsrf();
-        const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/reschedule`, {
+        const response = await authenticatedRequest(`/bookings/${bookingId}/reschedule`, {
             method: "PATCH",
-            credentials: "include",
             headers: {
-                Accept: "application/json",
                 "Content-Type": "application/json",
-                "X-XSRF-TOKEN": getXsrfToken(),
             },
             body: JSON.stringify({
                 booking_date: payload.booking_date,
@@ -447,15 +412,10 @@ export async function createBooking(
     const endTime = normalizeBookingTime(payload.end_time);
 
     try {
-        await initializeCsrf();
-
-        const response = await fetch(`${API_BASE_URL}/bookings`, {
+        const response = await authenticatedRequest("/bookings", {
             method: "POST",
-            credentials: "include",
             headers: {
-                Accept: "application/json",
                 "Content-Type": "application/json",
-                "X-XSRF-TOKEN": getXsrfToken(),
             },
             body: JSON.stringify({
                 court_id: payload.court_id,

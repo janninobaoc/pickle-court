@@ -8,6 +8,7 @@ import {
     getNoSlotsMessage,
     type CourtAvailability,
 } from "../app/lib/court-availability-api";
+import { clearAuthToken, setAuthToken } from "../app/lib/auth-token";
 
 const date = "2026-10-15";
 const responseBody = {
@@ -38,14 +39,16 @@ describe("public court availability API", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date("2026-10-01T04:00:00.000Z"));
-        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8000/api");
+        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8000/api/api/");
         vi.stubGlobal("fetch", fetchMock);
+        setAuthToken("availability-test-token");
     });
 
     afterEach(() => {
         vi.useRealTimers();
         vi.unstubAllEnvs();
         vi.unstubAllGlobals();
+        clearAuthToken();
         fetchMock.mockReset();
     });
 
@@ -57,11 +60,13 @@ describe("public court availability API", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock).toHaveBeenCalledWith(
             `http://localhost:8000/api/courts/17/availability?date=${date}`,
-            expect.objectContaining({ method: "GET", cache: "no-store", headers: { Accept: "application/json" } }),
+            expect.objectContaining({ method: "GET", cache: "no-store", credentials: "omit" }),
         );
         const options = fetchMock.mock.calls[0][1] as RequestInit;
-        expect(options.headers).not.toHaveProperty("X-XSRF-TOKEN");
-        expect(options.credentials).toBeUndefined();
+        const headers = new Headers(options.headers);
+        expect(headers.get("Accept")).toBe("application/json");
+        expect(headers.has("Authorization")).toBe(false);
+        expect(headers.has("X-XSRF-TOKEN")).toBe(false);
     });
 
     it("parses the Laravel availability contract including unavailable reasons", async () => {
@@ -100,6 +105,8 @@ describe("public court availability API", () => {
     );
 
     it.each([
+        [401, "Unable to load court availability. Please try again."],
+        [403, "Unable to load court availability. Please try again."],
         [404, "This court could not be found."],
         [422, "Choose a valid booking date from today onward."],
         [500, "Unable to load court availability. Please try again."],
@@ -144,18 +151,20 @@ describe("authenticated rescheduling availability API", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date("2026-10-01T04:00:00.000Z"));
-        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8000/api");
+        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8000/api/api/");
         vi.stubGlobal("fetch", fetchMock);
+        setAuthToken("availability-test-token");
     });
 
     afterEach(() => {
         vi.useRealTimers();
         vi.unstubAllEnvs();
         vi.unstubAllGlobals();
+        clearAuthToken();
         fetchMock.mockReset();
     });
 
-    it("uses the authenticated booking availability URL without CSRF initialization", async () => {
+    it("uses the bearer token for protected booking availability without cookies or CSRF", async () => {
         fetchMock.mockResolvedValueOnce(jsonResponse(responseBody));
 
         await getBookingRescheduleAvailability(51, date);
@@ -163,10 +172,28 @@ describe("authenticated rescheduling availability API", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock).toHaveBeenCalledWith(
             `http://localhost:8000/api/bookings/51/availability?date=${date}`,
-            expect.objectContaining({ method: "GET", credentials: "include", cache: "no-store" }),
+            expect.objectContaining({ method: "GET", credentials: "omit", cache: "no-store" }),
         );
         const options = fetchMock.mock.calls[0][1] as RequestInit;
-        expect(options.headers).not.toHaveProperty("X-XSRF-TOKEN");
+        const headers = new Headers(options.headers);
+        expect(headers.get("Accept")).toBe("application/json");
+        expect(headers.get("Authorization")).toBe("Bearer availability-test-token");
+        expect(headers.has("X-XSRF-TOKEN")).toBe(false);
+    });
+
+    it("omits Authorization when no token is available", async () => {
+        clearAuthToken();
+        fetchMock.mockResolvedValueOnce(jsonResponse({ message: "Unauthenticated." }, 401));
+
+        await expect(getBookingRescheduleAvailability(51, date)).rejects.toMatchObject({
+            status: 401,
+            message: "Your authentication could not be verified. Please log in again.",
+        });
+
+        const options = fetchMock.mock.calls[0][1] as RequestInit;
+        const headers = new Headers(options.headers);
+        expect(options.credentials).toBe("omit");
+        expect(headers.has("Authorization")).toBe(false);
     });
 
     it("rejects invalid booking IDs and dates before making a request", async () => {
@@ -176,11 +203,11 @@ describe("authenticated rescheduling availability API", () => {
     });
 
     it.each([
-        [401, "Your session could not be verified. Please log in again."],
+        [401, "Your authentication could not be verified. Please log in again."],
         [403, "You are not allowed to view availability for this booking."],
         [404, "Booking not found."],
         [409, "This booking cannot be rescheduled right now."],
-        [419, "Your session expired. Please refresh the page and try again."],
+        [419, "Unable to load court availability. Please try again."],
         [422, "Choose a valid booking date from today onward."],
         [500, "Unable to load court availability. Please try again."],
     ])("maps rescheduling availability HTTP %i safely", async (status, message) => {

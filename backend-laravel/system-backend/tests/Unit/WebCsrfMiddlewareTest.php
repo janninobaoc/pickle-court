@@ -11,9 +11,9 @@ use Illuminate\Session\Store;
 use Illuminate\Session\TokenMismatchException;
 use Tests\TestCase;
 
-class SanctumCsrfMiddlewareTest extends TestCase
+class WebCsrfMiddlewareTest extends TestCase
 {
-    public function test_unsafe_request_without_a_csrf_token_is_rejected_outside_console_context(): void
+    public function test_unsafe_web_request_without_a_valid_csrf_token_is_rejected(): void
     {
         $application = $this->createMock(ApplicationContract::class);
         $application->expects($this->once())
@@ -23,7 +23,7 @@ class SanctumCsrfMiddlewareTest extends TestCase
         $session = new Store('csrf-test-session', new ArraySessionHandler(120));
         $session->start();
 
-        $request = Request::create('/api/login', 'POST');
+        $request = Request::create('/account/profile', 'POST');
         $request->setLaravelSession($session);
 
         $middleware = new ValidateCsrfToken($application, app(Encrypter::class));

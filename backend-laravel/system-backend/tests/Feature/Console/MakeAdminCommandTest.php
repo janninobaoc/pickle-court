@@ -130,9 +130,7 @@ class MakeAdminCommandTest extends TestCase
 
     public function test_registration_cannot_assign_administrator_role(): void
     {
-        $response = $this->withHeader('Origin', 'http://localhost:3000')
-            ->withCredentials()
-            ->postJson('/api/register', [
+        $response = $this->postJson('/api/register', [
             'name' => 'Registration Role Check',
             'email' => 'make-admin-registration@example.test',
             'password' => 'Correct-Horse-42!',

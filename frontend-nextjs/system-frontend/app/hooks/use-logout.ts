@@ -30,41 +30,32 @@ export function useLogout() {
             await logout();
 
             toast.success("You have been logged out successfully.");
-
-            setLogoutRedirectPending(true);
-            clearAuthenticatedUser();
-
-            router.replace("/login");
-            router.refresh();
-
-            return true;
         } catch (error) {
-            if (error instanceof AuthApiError && error.status === 401) {
-                toast.error("Your session could not be verified. Please try again.");
-
-                setLogoutRedirectPending(true);
-                clearAuthenticatedUser();
-                router.replace("/login");
-                router.refresh();
-
-                return true;
-            }
-
-            if (error instanceof AuthApiError && error.status === 419) {
-                toast.error("Your session expired. Please refresh and try again.");
-            } else if (error instanceof AuthApiError) {
-                toast.error("Logout failed. Please try again.");
+            if (error instanceof AuthApiError) {
+                if (error.status === 401) {
+                    toast.error("You were signed out locally because the token could not be verified.");
+                } else if (error.status === 403) {
+                    toast.error("You were signed out locally, but the server denied the logout request.");
+                } else if (error.status === 0) {
+                    toast.error("You were signed out locally, but server-side token revocation could not be confirmed. Please check your connection.");
+                } else {
+                    toast.error("You were signed out locally, but the server did not confirm token revocation.");
+                }
             } else {
                 toast.error(
-                    "Unable to log out. Please check your connection and try again.",
+                    "You were signed out locally, but server-side token revocation could not be confirmed. Please check your connection.",
                 );
             }
-
-            return false;
         } finally {
+            setLogoutRedirectPending(true);
+            clearAuthenticatedUser();
+            router.replace("/login");
+            router.refresh();
             logoutPendingRef.current = false;
             setIsLoggingOut(false);
         }
+
+        return true;
     }, [clearAuthenticatedUser, router, status, user, setLogoutRedirectPending]);
 
     return { isLoggingOut, handleLogout };

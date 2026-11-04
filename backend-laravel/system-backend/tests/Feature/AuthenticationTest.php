@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\TestingDatabaseSafety;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -15,6 +16,7 @@ class AuthenticationTest extends TestCase
     {
         parent::setUp();
 
+        TestingDatabaseSafety::assertSafe(app());
         $this->assertSafeTestDatabase();
         $this->assertSame('array', config('session.driver'), 'Feature tests must not persist sessions in MySQL.');
         DB::beginTransaction();
@@ -32,20 +34,29 @@ class AuthenticationTest extends TestCase
 
     public function test_registration_returns_created_and_a_safe_user_payload(): void
     {
-        $response = $this->postSpaJson('/api/register', $this->validRegistration());
+        $response = $this->postJson('/api/register', $this->validRegistration());
 
         $response->assertCreated()
             ->assertJsonPath('message', 'Registration successful.')
             ->assertJsonPath('user.role', 'customer');
 
+        $token = $response->json('token');
+        $this->assertIsString($token);
+        $this->assertNotSame('', trim($token));
+
         $this->assertUserPayloadKeys($response->json('user'));
         $this->assertDatabaseHas('users', ['email' => 'auth-register@example.test']);
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('user.email', 'auth-register@example.test');
     }
 
     public function test_registration_stores_a_hashed_password(): void
     {
         $password = 'Correct-Horse-42!';
-        $this->postSpaJson('/api/register', $this->validRegistration(['password' => $password, 'password_confirmation' => $password]))
+        $this->postJson('/api/register', $this->validRegistration(['password' => $password, 'password_confirmation' => $password]))
             ->assertCreated();
 
         $storedPassword = DB::table('users')->where('email', 'auth-register@example.test')->value('password');
@@ -59,14 +70,14 @@ class AuthenticationTest extends TestCase
     {
         User::factory()->create(['email' => 'duplicate@example.test']);
 
-        $this->postSpaJson('/api/register', $this->validRegistration(['email' => 'duplicate@example.test']))
+        $this->postJson('/api/register', $this->validRegistration(['email' => 'duplicate@example.test']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
     }
 
     public function test_registration_rejects_invalid_input(): void
     {
-        $this->postSpaJson('/api/register', [
+        $this->postJson('/api/register', [
             'name' => '',
             'email' => 'not-an-email',
             'password' => 'short',
@@ -80,14 +91,14 @@ class AuthenticationTest extends TestCase
         $payload = $this->validRegistration();
         unset($payload['password_confirmation']);
 
-        $this->postSpaJson('/api/register', $payload)
+        $this->postJson('/api/register', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors('password');
     }
 
     public function test_registration_ignores_client_supplied_administrator_role(): void
     {
-        $response = $this->postSpaJson('/api/register', $this->validRegistration(['role' => 'admin']));
+        $response = $this->postJson('/api/register', $this->validRegistration(['role' => 'admin']));
 
         $response->assertCreated()
             ->assertJsonPath('user.role', 'customer');
@@ -113,7 +124,7 @@ class AuthenticationTest extends TestCase
     {
         $user = $this->makeUser('login-success@example.test', 'Correct-Horse-42!');
 
-        $response = $this->postSpaJson('/api/login', [
+        $response = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'Correct-Horse-42!',
         ]);
@@ -121,6 +132,15 @@ class AuthenticationTest extends TestCase
         $response->assertOk()->assertJsonPath('message', 'Login successful.');
         $this->assertUserPayloadKeys($response->json('user'));
         $this->assertSame('customer', $response->json('user.role'));
+
+        $token = $response->json('token');
+        $this->assertIsString($token);
+        $this->assertNotSame('', trim($token));
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id);
     }
 
     public function test_administrator_login_returns_the_administrator_role(): void
@@ -131,7 +151,7 @@ class AuthenticationTest extends TestCase
 
         $this->assertSame('admin', User::query()->findOrFail($admin->id)->role);
 
-        $response = $this->postSpaJson('/api/login', [
+        $response = $this->postJson('/api/login', [
             'email' => $admin->email,
             'password' => 'Correct-Horse-42!',
         ]);
@@ -146,153 +166,101 @@ class AuthenticationTest extends TestCase
     {
         $user = $this->makeUser('login-failure@example.test', 'Correct-Horse-42!');
 
-        $this->postSpaJson('/api/login', [
+        $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'incorrect-password',
         ])->assertUnauthorized();
     }
 
-    public function test_login_authenticates_the_web_session_guard(): void
-    {
-        $user = $this->makeUser('login-guard@example.test', 'Correct-Horse-42!');
-
-        $this->postSpaJson('/api/login', [
-            'email' => $user->email,
-            'password' => 'Correct-Horse-42!',
-        ])->assertOk();
-
-        $this->assertAuthenticatedAs($user, 'web');
-    }
-
-    public function test_login_rotates_an_existing_session_id(): void
-    {
-        $user = $this->makeUser('login-session@example.test', 'Correct-Horse-42!');
-        $sessionCookieName = config('session.cookie');
-        $oldSessionId = 'known-pre-auth-session-id';
-
-        $response = $this->withCookie($sessionCookieName, $oldSessionId)
-            ->postSpaJson('/api/login', [
-                'email' => $user->email,
-                'password' => 'Correct-Horse-42!',
-            ]);
-
-        $response->assertOk();
-        $newSessionCookie = $response->getCookie($sessionCookieName);
-
-        $this->assertNotNull($newSessionCookie, 'Login should return the rotated session cookie.');
-        $this->assertNotSame($oldSessionId, $newSessionCookie->getValue());
-    }
-
     public function test_authenticated_user_endpoint_returns_the_current_user(): void
     {
         $user = $this->makeUser('current-user@example.test', 'Correct-Horse-42!');
-        $login = $this->postSpaJson('/api/login', [
+
+        $login = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'Correct-Horse-42!',
         ])->assertOk();
 
-        $cookie = $login->getCookie(config('session.cookie'));
-        $this->assertNotNull($cookie, 'Login should return a session cookie.');
+        $token = $login->json('token');
+        $this->assertIsString($token);
+        $this->assertNotSame('', trim($token));
 
-        $response = $this->withCookie($cookie->getName(), $cookie->getValue())
-            ->getSpaJson('/api/user');
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user');
 
         $response->assertOk()
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.email', $user->email)
             ->assertJsonPath('user.role', 'customer');
+
         $this->assertUserPayloadKeys($response->json('user'));
+    }
+
+    public function test_bearer_token_expires_at_the_24_hour_boundary(): void
+    {
+        $createdAt = now()->startOfSecond();
+        $this->travelTo($createdAt);
+
+        $user = $this->makeUser('token-expiration@example.test', 'Correct-Horse-42!');
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'Correct-Horse-42!',
+        ])->assertOk();
+
+        $token = $login->json('token');
+        $this->assertIsString($token);
+        $this->assertNotSame('', trim($token));
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id);
+
+        $this->app['auth']->forgetGuards();
+
+        $this->travelTo($createdAt->copy()->addMinutes(1440), function () use ($token): void {
+            $this->withHeader('Authorization', 'Bearer ' . $token)
+                ->getJson('/api/user')
+                ->assertUnauthorized();
+        });
     }
 
     public function test_unauthenticated_user_endpoint_returns_unauthorized(): void
     {
-        $this->getSpaJson('/api/user')->assertUnauthorized();
+        $this->getJson('/api/user')->assertUnauthorized();
     }
 
-    public function test_user_response_contains_exactly_the_allowed_fields(): void
-    {
-        $user = $this->makeUser('user-fields@example.test', 'Correct-Horse-42!');
-        $login = $this->postSpaJson('/api/login', [
-            'email' => $user->email,
-            'password' => 'Correct-Horse-42!',
-        ])->assertOk();
-        $cookie = $login->getCookie(config('session.cookie'));
-        $this->assertNotNull($cookie);
-
-        $response = $this->withCookie($cookie->getName(), $cookie->getValue())->getSpaJson('/api/user');
-
-        $response->assertOk();
-        $this->assertUserPayloadKeys($response->json('user'));
-    }
-
-    public function test_logout_succeeds_and_invalidates_authentication(): void
+    public function test_logout_revokes_only_the_current_bearer_token(): void
     {
         $user = $this->makeUser('logout@example.test', 'Correct-Horse-42!');
-        $login = $this->postSpaJson('/api/login', [
+        $login = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'Correct-Horse-42!',
         ])->assertOk();
-        $cookie = $login->getCookie(config('session.cookie'));
-        $this->assertNotNull($cookie);
 
-        $logout = $this->withCookie($cookie->getName(), $cookie->getValue())
-            ->postSpaJson('/api/logout');
+        $currentToken = $login->json('token');
+        $this->assertIsString($currentToken);
+        $this->assertNotSame('', trim($currentToken));
+
+        $otherToken = $user->createToken('other-auth-token')->plainTextToken;
+
+        $logout = $this->withHeader('Authorization', 'Bearer ' . $currentToken)
+            ->postJson('/api/logout');
 
         $logout->assertOk()->assertJsonPath('message', 'Logout successful.');
-        $rotatedCookie = $logout->getCookie(config('session.cookie'));
-        $this->assertNotNull($rotatedCookie, 'Logout should return the post-invalidation session cookie.');
 
         $this->app['auth']->forgetGuards();
 
-        $this->withCookie($rotatedCookie->getName(), $rotatedCookie->getValue())
-            ->getSpaJson('/api/user')
+        $this->withHeader('Authorization', 'Bearer ' . $currentToken)
+            ->getJson('/api/user')
             ->assertUnauthorized();
-    }
 
-    public function test_cookie_session_authentication_works_without_a_bearer_token(): void
-    {
-        $user = $this->makeUser('cookie-only@example.test', 'Correct-Horse-42!');
-        $login = $this->postSpaJson('/api/login', [
-            'email' => $user->email,
-            'password' => 'Correct-Horse-42!',
-        ])->assertOk();
-        $cookie = $login->getCookie(config('session.cookie'));
-        $this->assertNotNull($cookie);
+        $this->app['auth']->forgetGuards();
 
-        $response = $this->withCookie($cookie->getName(), $cookie->getValue())
-            ->getSpaJson('/api/user');
-
-        $response->assertOk()->assertJsonPath('user.id', $user->id);
-        $this->assertUserPayloadKeys($response->json('user'));
-    }
-
-    public function test_registration_rotates_an_existing_session_id(): void
-    {
-        $sessionCookieName = config('session.cookie');
-        $oldSessionId = 'known-pre-registration-session-id';
-
-        $response = $this->withCookie($sessionCookieName, $oldSessionId)
-            ->postSpaJson('/api/register', $this->validRegistration());
-
-        $response->assertCreated();
-        $newSessionCookie = $response->getCookie($sessionCookieName);
-
-        $this->assertNotNull($newSessionCookie, 'Registration should return the rotated session cookie.');
-        $this->assertNotSame($oldSessionId, $newSessionCookie->getValue());
-    }
-
-    private function postSpaJson(string $uri, array $data = [])
-    {
-        return $this->withHeader('Origin', 'http://localhost:3000')
-            ->withCredentials()
-            ->postJson($uri, $data);
-    }
-
-    private function getSpaJson(string $uri)
-    {
-        return $this->withHeader('Origin', 'http://localhost:3000')
-            ->withCredentials()
-            ->getJson($uri);
+        $this->withHeader('Authorization', 'Bearer ' . $otherToken)
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id);
     }
 
     private function validRegistration(array $overrides = []): array

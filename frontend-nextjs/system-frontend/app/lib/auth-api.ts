@@ -1,11 +1,18 @@
+import {
+    clearAuthToken,
+    getAuthToken,
+    setAuthToken,
+} from "./auth-token";
 
-const API_BASE_URL = (
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:8000/api"
-).replace(/\/+$/, "");
+function getApiBaseUrl(): string {
+    const configuredBaseUrl = (
+        process.env.NEXT_PUBLIC_API_BASE_URL ??
+        process.env.NEXT_PUBLIC_API_URL ??
+        "http://localhost:8000"
+    ).replace(/\/+$/, "");
 
-const BACKEND_ORIGIN = new URL(API_BASE_URL).origin;
+    return `${configuredBaseUrl.replace(/(?:\/api)+$/i, "")}/api`;
+}
 
 export interface AuthUser {
     id: number;
@@ -16,6 +23,7 @@ export interface AuthUser {
 
 export interface AuthResponse {
     message: string;
+    token: string;
     user: AuthUser;
 }
 
@@ -52,74 +60,40 @@ export class AuthApiError extends Error {
     }
 }
 
-function getXsrfToken(): string {
-    const cookie = document.cookie
-        .split("; ")
-        .find((item) => item.startsWith("XSRF-TOKEN="));
+function authHeaders(headers?: HeadersInit): Headers {
+    const result = new Headers(headers);
+    result.set("Accept", "application/json");
 
-    if (!cookie) {
-        throw new Error(
-            "CSRF cookie was not received. Please refresh the page and try again.",
-        );
+    const token = getAuthToken();
+    if (token) {
+        result.set("Authorization", `Bearer ${token}`);
+    } else {
+        result.delete("Authorization");
     }
 
-    return decodeURIComponent(cookie.substring("XSRF-TOKEN=".length));
+    return result;
 }
 
-async function initializeCsrf(): Promise<void> {
-    const response = await fetch(
-        `${BACKEND_ORIGIN}/sanctum/csrf-cookie`,
-        {
-            method: "GET",
-            credentials: "include",
-            headers: {
-                Accept: "application/json",
-            },
-        },
-    );
+function storeAuthResponse(data: unknown): AuthResponse {
+    const response = data as AuthResponse | null;
 
-    if (!response.ok) {
-        throw new AuthApiError(
-            response.status,
-            response.status === 419
-                ? "Your session expired. Please refresh the page and try again."
-                : "Unable to initialize a secure session. Please try again.",
-        );
+    if (!response || typeof response.token !== "string" || response.token.length === 0) {
+        throw new AuthApiError(500, "The authentication response was invalid.");
     }
-}
 
-/** Send a stateful API request after initializing Sanctum CSRF protection. */
-export async function fetchWithCsrf(
-    path: string,
-    init: RequestInit,
-): Promise<Response> {
-    await initializeCsrf();
-
-    const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
-    headers.set("X-XSRF-TOKEN", getXsrfToken());
-
-    const endpoint = path.startsWith("/") ? path : `/${path}`;
-
-    return fetch(`${API_BASE_URL}${endpoint}`, {
-        ...init,
-        credentials: "include",
-        headers,
-    });
+    setAuthToken(response.token);
+    return response;
 }
 
 export async function register(
     payload: RegisterPayload,
 ): Promise<AuthResponse> {
-    await initializeCsrf();
-
-    const response = await fetch(`${API_BASE_URL}/register`, {
+    const response = await fetch(`${getApiBaseUrl()}/register`, {
         method: "POST",
-        credentials: "include",
+        credentials: "omit",
         headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            "X-XSRF-TOKEN": getXsrfToken(),
         },
         body: JSON.stringify(payload),
     });
@@ -129,30 +103,23 @@ export async function register(
     if (!response.ok) {
         throw new AuthApiError(
             response.status,
-            data?.message ??
-            (response.status === 419
-                ? "Your session expired. Please refresh the page and try again."
-                : (data?.message ?? "Registration failed. Please try again.")),
+            data?.message ?? "Registration failed. Please try again.",
             data?.errors ?? {},
         );
     }
 
-    return data as AuthResponse;
+    return storeAuthResponse(data);
 }
-
 
 export async function login(
     payload: LoginPayload,
 ): Promise<AuthResponse> {
-    await initializeCsrf();
-
-    const response = await fetch(`${API_BASE_URL}/login`, {
+    const response = await fetch(`${getApiBaseUrl()}/login`, {
         method: "POST",
-        credentials: "include",
+        credentials: "omit",
         headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            "X-XSRF-TOKEN": getXsrfToken(),
         },
         body: JSON.stringify(payload),
     });
@@ -160,23 +127,15 @@ export async function login(
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-        const message =
-            response.status === 419
-                ? "Your session expired. Please refresh the page and try again."
-                : response.status === 401
-                    ? "Invalid email or password."
-                    : (data?.message ?? "Login failed. Please try again.");
+        const message = response.status === 401
+            ? "Invalid email or password."
+            : (data?.message ?? "Login failed. Please try again.");
 
-        throw new AuthApiError(
-            response.status,
-            message,
-            data?.errors ?? {},
-        );
+        throw new AuthApiError(response.status, message, data?.errors ?? {});
     }
 
-    return data as AuthResponse;
+    return storeAuthResponse(data);
 }
-
 
 let currentUserRequest: Promise<AuthUser | null> | null = null;
 
@@ -185,21 +144,25 @@ export function invalidateCurrentUserRequest(): void {
 }
 
 export function getCurrentUser(): Promise<AuthUser | null> {
+    if (!getAuthToken()) {
+        invalidateCurrentUserRequest();
+        return Promise.resolve(null);
+    }
+
     if (currentUserRequest) {
         return currentUserRequest;
     }
 
     const request = (async (): Promise<AuthUser | null> => {
-        const response = await fetch(`${API_BASE_URL}/user`, {
+        const response = await fetch(`${getApiBaseUrl()}/user`, {
             method: "GET",
-            credentials: "include",
-            headers: {
-                Accept: "application/json",
-            },
+            credentials: "omit",
+            headers: authHeaders(),
             cache: "no-store",
         });
 
         if (response.status === 401) {
+            clearAuthToken();
             return null;
         }
 
@@ -208,16 +171,14 @@ export function getCurrentUser(): Promise<AuthUser | null> {
         if (!response.ok) {
             throw new AuthApiError(
                 response.status,
-                data?.message ??
-                "Unable to check your session. Please try again.",
+                data?.message ?? "Unable to check your authentication. Please try again.",
             );
         }
 
         return (data as CurrentUserResponse).user;
     })();
 
-    let sharedRequest: Promise<AuthUser | null>;
-    sharedRequest = request.finally(() => {
+    const sharedRequest = request.finally(() => {
         if (currentUserRequest === sharedRequest) {
             currentUserRequest = null;
         }
@@ -227,35 +188,44 @@ export function getCurrentUser(): Promise<AuthUser | null> {
     return sharedRequest;
 }
 
-
 export async function logout(): Promise<LogoutResponse> {
-    await initializeCsrf();
+    const token = getAuthToken();
 
-    const response = await fetch(`${API_BASE_URL}/logout`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            "X-XSRF-TOKEN": getXsrfToken(),
-        },
-    });
+    if (!token) {
+        clearAuthToken();
+        throw new AuthApiError(401, "Your authentication could not be verified. Please log in again.");
+    }
+
+    let response: Response;
+
+    try {
+        response = await fetch(`${getApiBaseUrl()}/logout`, {
+            method: "POST",
+            credentials: "omit",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+    } catch {
+        throw new AuthApiError(
+            0,
+            "Server-side token revocation could not be confirmed because the request failed.",
+        );
+    } finally {
+        clearAuthToken();
+    }
 
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-        const message =
-            response.status === 419
-                ? "Your session expired. Please refresh the page and try again."
-                : response.status === 401
-                    ? "Your session could not be verified. Please refresh the page."
-                    : (data?.message ?? "Logout failed. Please try again.");
+        const message = response.status === 401
+            ? "Your authentication could not be verified. Please log in again."
+            : (data?.message ?? "Logout failed. Please try again.");
 
         throw new AuthApiError(response.status, message);
     }
 
     return data as LogoutResponse;
 }
-
-
-

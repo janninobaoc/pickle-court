@@ -5,8 +5,8 @@ namespace App\Services\Auth;
 use App\Models\User;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\TransientToken;
 
 class AuthService
 {
@@ -25,9 +25,6 @@ class AuthService
             'password' => Hash::make($attributes['password']),
         ]);
 
-        Auth::guard('web')->login($user);
-        $this->request->session()->regenerate();
-
         return $user;
     }
 
@@ -36,30 +33,37 @@ class AuthService
      */
     public function login(array $credentials): ?User
     {
-        if (! Auth::guard('web')->attempt($credentials)) {
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (!$user || !Hash::check($credentials['password'], $user->password)) {
             return null;
         }
 
-        $this->request->session()->regenerate();
-
-        $user = Auth::guard('web')->user();
-
-        return $user instanceof User ? $user : null;
+        return $user;
     }
 
     public function logout(): void
     {
-        Auth::guard('web')->logout();
+        $user = $this->request->user();
 
-        $this->request->session()->invalidate();
-        $this->request->session()->regenerateToken();
+        if (!$user instanceof User) {
+            return;
+        }
+
+        $currentAccessToken = $user->currentAccessToken();
+
+        if ($currentAccessToken === null || $currentAccessToken instanceof TransientToken) {
+            return;
+        }
+
+        $currentAccessToken->delete();
     }
 
     public function currentUser(): User
     {
         $user = $this->request->user();
 
-        if (! $user instanceof User) {
+        if (!$user instanceof User) {
             throw new AuthenticationException();
         }
 

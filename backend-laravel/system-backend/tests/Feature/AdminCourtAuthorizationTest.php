@@ -70,6 +70,19 @@ class AdminCourtAuthorizationTest extends TestCase
         $this->deleteJson("/api/admin/courts/{$court->id}")->assertForbidden();
     }
 
+    public function test_administrator_with_bearer_token_can_access_admin_courts(): void
+    {
+        $admin = User::factory()->create();
+        $admin->role = 'admin';
+        $admin->save();
+
+        $token = $admin->createToken('admin-api-test')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/admin/courts')
+            ->assertOk();
+    }
+
     public function test_administrator_can_list_active_and_inactive_courts(): void
     {
         $activeCourt = Court::factory()->create([

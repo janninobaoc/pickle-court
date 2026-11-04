@@ -16,6 +16,7 @@ import {
   invalidateCurrentUserRequest,
   type AuthUser,
 } from "@/app/lib/auth-api";
+import { clearAuthToken } from "@/app/lib/auth-token";
 
 type AuthStatus =
   | "loading"
@@ -59,6 +60,7 @@ export function AuthProvider({
   const clearAuthenticatedUser = useCallback(() => {
     requestGenerationRef.current += 1;
     invalidateCurrentUserRequest();
+    clearAuthToken();
     setUser(null);
     setStatus("unauthenticated");
   }, []);
