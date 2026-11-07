@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAuthToken, getAuthToken, setAuthToken } from "../app/lib/auth-token";
 import BookingForm from "../app/components/booking-form";
-import type { Court } from "../app/data/courts";
+import type { Court } from "../app/types/court";
 import { buildBookingReturnTo, buildLoginUrl } from "../app/lib/booking-selection";
 
 const harness = vi.hoisted(() => ({

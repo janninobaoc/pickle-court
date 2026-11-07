@@ -1,4 +1,4 @@
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import type { Booking } from "../lib/booking-api";
 import { formatBookingDate, formatPeso, formatPesoExact, formatTime, timeToMinutes } from "../lib/booking-utils";
 import CourtImage from "./court-image";

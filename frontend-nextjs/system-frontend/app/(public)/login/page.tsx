@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         eyebrow="Welcome Back"
         title="Log in to your account"
         description="Enter your details to continue."
-        demoNotice="Log in to your PickleCourt account to explore courts and manage your bookings."
+        notice="Log in to your PickleCourt account to explore courts and manage your bookings."
         footer={<>Don&apos;t have an account? <Link href={registerHref} className="rounded font-semibold text-[#164A41] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]">Sign up</Link></>}
       >
         <LoginForm returnTo={rawReturnTo} />

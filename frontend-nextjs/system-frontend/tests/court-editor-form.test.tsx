@@ -3,7 +3,7 @@ import { isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CourtEditorForm from "../app/components/court-editor-form";
 import Button from "../app/components/button";
-import type { Court } from "../app/data/courts";
+import type { Court } from "../app/types/court";
 
 type HookHarness = {
   cursor: number;

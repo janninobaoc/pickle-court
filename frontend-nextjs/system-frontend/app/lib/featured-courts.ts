@@ -1,6 +1,6 @@
 import type { ApiCourt } from "../types/court";
 import { mapApiCourt } from "./court-mapper";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);

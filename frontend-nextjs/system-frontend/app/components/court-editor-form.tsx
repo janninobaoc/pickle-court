@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import { formatTime } from "../lib/booking-utils";
 import Button from "./button";
 

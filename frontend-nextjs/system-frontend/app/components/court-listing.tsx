@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import CourtCard from "./court-card";
 import Button from "./button";
 

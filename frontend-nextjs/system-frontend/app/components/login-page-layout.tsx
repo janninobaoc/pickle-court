@@ -9,11 +9,11 @@ type AuthSplitLayoutProps = {
   title: string;
   description: string;
   footer: ReactNode;
-  demoNotice?: string;
+  notice?: string;
 };
 
 export default function AuthSplitLayout({
-  children, eyebrow, title, description, footer, demoNotice,
+  children, eyebrow, title, description, footer, notice,
 }: AuthSplitLayoutProps) {
   return (
     <main className="flex flex-1 items-center py-8 sm:py-12">
@@ -58,9 +58,9 @@ export default function AuthSplitLayout({
                 <h1 className="mt-3 text-3xl font-bold tracking-tight text-[#164A41] sm:text-4xl">{title}</h1>
                 <p className="mt-3 text-sm leading-6 text-[#64748B]">{description}</p>
               </header>
-              {demoNotice && (
+              {notice && (
                 <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  {demoNotice}
+                  {notice}
                 </p>
               )}
               <div className="mt-8">{children}</div>

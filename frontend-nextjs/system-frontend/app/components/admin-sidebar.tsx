@@ -90,7 +90,7 @@ export default function AdminSidebar({ mobileOpen, onNavigate }: AdminSidebarPro
           >
             {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
-          <p className="border-t border-white/10 px-6 py-5 text-xs leading-5 text-white/60">Demo workspace<br />Access restrictions are not enabled.</p>
+          <p className="border-t border-white/10 px-6 py-5 text-xs leading-5 text-white/60">Administrator workspace</p>
         </div>
       </aside>
     </>

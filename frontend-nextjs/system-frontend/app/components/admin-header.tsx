@@ -22,7 +22,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
           <p className="font-semibold text-foreground">Overview</p>
         </div>
       </div>
-      <span className="rounded-full border border-accent/70 bg-[#f3f8e9] px-3 py-1.5 text-xs font-semibold text-primary">Demo mode</span>
+      <span className="rounded-full border border-accent/70 bg-[#f3f8e9] px-3 py-1.5 text-xs font-semibold text-primary">Administration</span>
     </header>
   );
 }

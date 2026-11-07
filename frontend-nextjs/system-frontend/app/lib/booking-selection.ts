@@ -1,4 +1,4 @@
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import { parseLocalDate, timeToMinutes } from "./booking-utils";
 import { getSafeReturnTo } from "./auth-redirect";
 

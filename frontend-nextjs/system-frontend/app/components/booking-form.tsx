@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import { formatPesoExact, formatTime, getLocalDateString, parseLocalDate } from "../lib/booking-utils";
 import { BookingApiError, createBooking, type Booking, type BookingValidationErrors } from "../lib/booking-api";
 import {

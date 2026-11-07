@@ -27,7 +27,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
         eyebrow="Get Started"
         title="Create your account"
         description="Join PickleCourt and start exploring courts."
-        demoNotice="Register for a PickleCourt account to explore courts and manage your bookings."
+        notice="Register for a PickleCourt account to explore courts and manage your bookings."
         footer={<>Already have an account? <Link href={loginHref} className="rounded font-semibold text-[#164A41] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#164A41]">Log in</Link></>}
       >
         <RegisterForm returnTo={returnTo} />

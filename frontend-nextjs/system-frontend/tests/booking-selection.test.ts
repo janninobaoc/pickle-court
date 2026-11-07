@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { courts } from "../app/data/courts";
+import { courts } from "./fixtures/courts";
 import { DEFAULT_AUTH_REDIRECT, getSafeReturnTo } from "../app/lib/auth-redirect";
 import {
     buildBookingReturnTo,

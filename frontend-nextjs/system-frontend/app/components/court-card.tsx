@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import CourtImage from "./court-image";
 
 type CourtCardProps = { court: Court; compact?: boolean };
@@ -43,7 +43,7 @@ export default function CourtCard({ court, compact = false }: CourtCardProps) {
                 {court.location}
               </p>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${court.available ? "bg-[#edf7df] text-primary" : "bg-gray-100 text-gray-600"}`}>
-                {court.available ? "Available" : "Unavailable"} · sample
+                {court.available ? "Available" : "Unavailable"}
               </span>
             </div>
             <ul aria-label="Amenities" className="mt-3 flex flex-wrap gap-1.5">

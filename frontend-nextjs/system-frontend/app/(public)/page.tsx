@@ -49,7 +49,7 @@ const steps: { number: string; title: string; description: string; icon: IconKin
   {
     number: "03",
     title: "Book Your Court",
-    description: "Review your booking details in the demo booking flow. No real reservation is created.",
+    description: "Review your details and submit a booking request for your preferred time.",
     icon: "check",
   },
 ];

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminCourtManagement from "../app/components/admin-court-management";
 import Button from "../app/components/button";
 import CourtEditorForm from "../app/components/court-editor-form";
-import type { Court } from "../app/data/courts";
+import type { Court } from "../app/types/court";
 import { AdminCourtsApiError } from "../app/lib/admin-courts-api";
 import type {
   ApiCourt,

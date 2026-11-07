@@ -1,3 +1,20 @@
+export type Court = {
+  id: string;
+  name: string;
+  description: string;
+  category: "Indoor" | "Outdoor";
+  pricePerHour: number;
+  location: string;
+  amenities: string[];
+  operatingHours: string;
+  openingTime: string;
+  closingTime: string;
+  operatingDays?: number[];
+  artwork: "indoor" | "outdoor" | "championship";
+  image?: string;
+  available: boolean;
+};
+
 export type ApiCourt = {
     id: number;
     name: string;

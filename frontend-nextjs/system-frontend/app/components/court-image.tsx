@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import CourtArtwork from "./court-artwork";
 
 type CourtImageProps = {

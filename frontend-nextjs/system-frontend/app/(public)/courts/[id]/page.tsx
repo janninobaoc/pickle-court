@@ -60,7 +60,7 @@ export default async function CourtDetailsPage({ params }: CourtDetailsPageProps
             <div className="flex shrink-0 flex-wrap gap-2">
               <span className="inline-flex min-h-8 items-center rounded-full bg-[#EAF2E8] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#164A41]">{court.category}</span>
               <span className={`inline-flex min-h-8 items-center rounded-full px-3 py-1 text-xs font-semibold ${court.available ? "bg-[#EDF7DF] text-[#245A32]" : "bg-slate-100 text-slate-700"}`}>
-                Sample status: {court.available ? "Available" : "Unavailable"}
+                Court status: {court.available ? "Available" : "Unavailable"}
               </span>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default async function CourtDetailsPage({ params }: CourtDetailsPageProps
             className="aspect-[4/3] rounded-xl sm:aspect-[16/8] sm:rounded-2xl lg:aspect-[2.1/1]"
           />
         </div>
-        <p className="mt-2 text-xs text-[#64748B]">Sample court photography.</p>
+        <p className="mt-2 text-xs text-[#64748B]">Court illustration.</p>
 
         <div className="mt-8 grid items-start gap-6 lg:mt-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8">
           <div className="min-w-0 space-y-6 sm:space-y-7">
@@ -93,7 +93,7 @@ export default async function CourtDetailsPage({ params }: CourtDetailsPageProps
                 </div>}
               </dl>
               <p className="mt-5 rounded-xl border border-[#C5F277]/70 bg-[#F5F9ED] px-4 py-3 text-sm leading-6 text-[#355B4B]">
-                Availability shown here is sample information only and is not verified in real time.
+                Court status indicates whether this venue accepts bookings. Check available times when booking.
               </p>
             </section>
 
@@ -123,7 +123,6 @@ export default async function CourtDetailsPage({ params }: CourtDetailsPageProps
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#5C9142]">Plan your visit</p>
                   <h2 id="hours-title" className="mt-1 text-xl font-bold tracking-tight text-[#164A41]">Operating Hours</h2>
                   <p className="mt-2 text-sm leading-6 text-[#1F2937]">{court.operatingHours}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#64748B]">Sample hours; please confirm with the venue.</p>
                 </div>
               </div>
             </section>
@@ -153,7 +152,7 @@ export default async function CourtDetailsPage({ params }: CourtDetailsPageProps
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="ml-2 size-4"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </Button>
                 <p className="mt-3 text-center text-xs leading-5 text-[#64748B]">
-                  Booking is a demo preview. Sample availability is not verified and no reservation is confirmed.
+                  Choose a date and time to check availability. Bookings are subject to confirmation.
                 </p>
               </div>
             </section>

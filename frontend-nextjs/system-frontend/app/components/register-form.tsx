@@ -26,7 +26,6 @@ export default function RegisterForm({ returnTo }: { returnTo?: string }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  // const [demoMessage, setDemoMessage] = useState("");
 
   const fullNameError =
     (submitted && !fullName.trim() ? "Full name is required." : "") ||

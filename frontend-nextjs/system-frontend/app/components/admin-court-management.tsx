@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useEffect, useRef } from "react";
-import type { Court } from "../data/courts";
+import type { Court } from "../types/court";
 import { formatPeso } from "../lib/booking-utils";
 import Button from "./button";
 import CourtEditorForm from "./court-editor-form";
@@ -326,20 +326,6 @@ export default function AdminCourtManagement() {
     }
   }
 
-  function deleteCourt(court: Court) {
-    const confirmed = window.confirm(
-      `Demo-only deletion: remove “${court.name}” from this page's temporary local state? This will not affect the shared dataset or backend.`,
-    );
-    if (!confirmed) return;
-
-    setLocalCourts((current) => current.filter((item) => item.id !== court.id));
-    setSuccessMessage("Demo action: court removed from local page state only.");
-    if (editingCourt?.id === court.id) {
-      setEditorOpen(false);
-      setEditingCourt(null);
-    }
-  }
-
   function resetFilters() {
     setSearch("");
     setTypeFilter("All");
@@ -497,7 +483,7 @@ export default function AdminCourtManagement() {
                       <div className="flex justify-end gap-1">
                         <Link href={`/courts/${court.id}`} className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">View</Link>
                         <button type="button" disabled={editorOpen || isSavingCourt || isRefreshingCreatedCourts} onClick={() => openEditForm(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50">Edit</button>
-                        <button type="button" onClick={() => deleteCourt(court)} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-700">Delete</button>
+                        <button type="button" disabled title="Court deletion is not available yet." className="min-h-9 cursor-not-allowed rounded-lg px-2.5 text-xs font-semibold text-gray-400">Delete</button>
                       </div>
                     </td>
                   </tr>
