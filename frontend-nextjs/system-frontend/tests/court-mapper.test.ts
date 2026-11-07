@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApiCourt } from "../app/types/court";
-import { mapApiCourt, mapOperatingDays } from "../app/lib/court-mapper";
+import { mapApiCourt, mapOperatingDays, sortOperatingDays } from "../app/lib/court-mapper";
 
 function makeApiCourt(overrides: Partial<ApiCourt> = {}): ApiCourt {
   return {
@@ -21,6 +21,51 @@ function makeApiCourt(overrides: Partial<ApiCourt> = {}): ApiCourt {
     ...overrides,
   };
 }
+
+describe("sortOperatingDays", () => {
+  it("sorts randomly selected weekdays from Monday through Sunday", () => {
+    expect(sortOperatingDays([0, 3, 1, 5])).toEqual([1, 3, 5, 0]);
+  });
+
+  it("places Saturday before Sunday", () => {
+    expect(sortOperatingDays([0, 6])).toEqual([6, 0]);
+  });
+
+  it("returns a new array for already sorted weekdays", () => {
+    const days = [1, 2, 3, 4, 5, 6, 0];
+
+    const sorted = sortOperatingDays(days);
+
+    expect(sorted).toEqual([1, 2, 3, 4, 5, 6, 0]);
+    expect(sorted).not.toBe(days);
+  });
+
+  it("returns a new empty array for empty input", () => {
+    const days: number[] = [];
+
+    const sorted = sortOperatingDays(days);
+
+    expect(sorted).toEqual([]);
+    expect(sorted).not.toBe(days);
+  });
+
+  it("does not mutate the original array", () => {
+    const days = [0, 3, 1, 5];
+
+    const sorted = sortOperatingDays(days);
+
+    expect(sorted).toEqual([1, 3, 5, 0]);
+    expect(days).toEqual([0, 3, 1, 5]);
+    expect(sorted).not.toBe(days);
+  });
+
+  it("accepts a frozen input array", () => {
+    const days = Object.freeze([0, 3, 1, 5]);
+
+    expect(sortOperatingDays(days)).toEqual([1, 3, 5, 0]);
+    expect(days).toEqual([0, 3, 1, 5]);
+  });
+});
 
 describe("mapApiCourt", () => {
   it("maps a complete valid indoor Laravel court record", () => {
@@ -69,7 +114,7 @@ describe("mapApiCourt", () => {
   });
 
   it("maps Sunday to 0 and Saturday to 6 in a combined list", () => {
-    expect(mapOperatingDays(["Sunday", "Saturday"])).toEqual([0, 6]);
+    expect(mapOperatingDays(["Sunday", "Saturday"])).toEqual([6, 0]);
   });
 
   it("maps null operating days to an empty array", () => {
@@ -80,8 +125,8 @@ describe("mapApiCourt", () => {
     expect(mapOperatingDays(["Funday", "Monday"])).toEqual([1]);
   });
 
-  it("preserves weekday order", () => {
-    expect(mapOperatingDays(["Friday", "Monday", "Sunday"])).toEqual([5, 1, 0]);
+  it("normalizes weekdays to Monday-to-Sunday order", () => {
+    expect(mapOperatingDays(["Friday", "Monday", "Sunday"])).toEqual([1, 5, 0]);
   });
 
   it("uses the existing location fallback for null or blank locations", () => {

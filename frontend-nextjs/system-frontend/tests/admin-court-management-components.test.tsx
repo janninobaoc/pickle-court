@@ -88,7 +88,7 @@ const createdApiCourt: ApiCourt = {
   location: "Cebu Harbor",
   opening_time: "07:30:00",
   closing_time: "21:00:00",
-  operating_days: null,
+  operating_days: ["Monday"],
 };
 
 const updatedApiCourt: ApiCourt = {
@@ -110,10 +110,10 @@ const validChanges: Omit<Court, "id"> = {
   pricePerHour: 325,
   location: "Cebu Harbor",
   amenities: ["Parking", "Lighting"],
-  operatingHours: "Daily, 7:30 AM - 9:00 PM",
+  operatingHours: "Monday · 7:30 AM - 9:00 PM",
   openingTime: "07:30",
   closingTime: "21:00",
-  operatingDays: undefined,
+  operatingDays: [1],
   artwork: "outdoor",
   image: undefined,
   available: false,
@@ -267,6 +267,26 @@ function changeEditorValue(
   return renderEditor(hooks, props);
 }
 
+function toggleEditorWeekday(hooks: HookHarness, props: ElementProps, day: string) {
+  const tree = renderEditor(hooks, props);
+  const label = findElement(
+    tree,
+    (element) => element.type === "label" && textContent(element).trim() === day,
+  );
+  if (!label) throw new Error(`Expected the ${day} label.`);
+
+  const checkbox = findElement(
+    label,
+    (element) => element.type === "input" && propsOf(element).type === "checkbox",
+  );
+  if (!checkbox) throw new Error(`Expected the ${day} checkbox.`);
+
+  const onChange = propsOf(checkbox).onChange;
+  if (typeof onChange !== "function") throw new Error(`Expected the ${day} checkbox handler.`);
+  (onChange as () => void)();
+  return renderEditor(hooks, props);
+}
+
 function fillEditor(hooks: HookHarness, props: ElementProps) {
   changeEditorValue(hooks, props, "court-name", "New Harbor Court");
   changeEditorValue(hooks, props, "court-location", "Cebu Harbor");
@@ -286,6 +306,32 @@ function fillEditor(hooks: HookHarness, props: ElementProps) {
   if (typeof onChange !== "function") throw new Error("Expected the amenity checkbox handler.");
   (onChange as () => void)();
   tree = renderEditor(hooks, props);
+
+  const mondayLabel = findElement(
+    tree,
+    (element) =>
+      element.type === "label" &&
+      textContent(element).trim() === "Monday",
+  );
+  if (!mondayLabel) throw new Error("Expected the Monday label.");
+
+  const mondayCheckbox = findElement(
+    mondayLabel,
+    (element) =>
+      element.type === "input" &&
+      propsOf(element).type === "checkbox",
+  );
+  if (!mondayCheckbox) throw new Error("Expected the Monday checkbox.");
+
+  if (propsOf(mondayCheckbox).checked !== true) {
+    const selectMonday = propsOf(mondayCheckbox).onChange;
+    if (typeof selectMonday !== "function") {
+      throw new Error("Expected the Monday checkbox handler.");
+    }
+
+    (selectMonday as () => void)();
+    tree = renderEditor(hooks, props);
+  }
 
   const status = findElement(tree, (element) => propsOf(element).id === "court-status");
   if (!status) throw new Error("Expected to find the availability field.");
@@ -317,7 +363,7 @@ describe("Admin Court Management creation workflow", () => {
   let editorHooks: HookHarness;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     managementHooks = createHookHarness();
     editorHooks = createHookHarness();
     harness.activeHooks = null;
@@ -490,6 +536,7 @@ describe("Admin Court Management creation workflow", () => {
       amenities: ["Parking", "Lighting"],
       opening_time: "09:00",
       closing_time: "23:00",
+      operating_days: ["Monday", "Tuesday"],
     };
     expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
     expect(harness.updateAdminCourt).toHaveBeenCalledWith("17", expectedPayload);
@@ -503,6 +550,27 @@ describe("Admin Court Management creation workflow", () => {
     expect(textContent(tree)).toContain("New Harbor Court");
     expect(textContent(tree)).toContain("2 courts");
     expect(harness.getAdminCourts).toHaveBeenCalledTimes(1);
+    expect(harness.createAdminCourt).not.toHaveBeenCalled();
+  });
+
+  it("sends PUT weekdays in Monday-to-Sunday order after unordered checkbox selections", async () => {
+    const { props } = await openEditEditor(managementHooks);
+
+    toggleEditorWeekday(editorHooks, props, "Monday");
+    toggleEditorWeekday(editorHooks, props, "Tuesday");
+    for (const day of ["Saturday", "Tuesday", "Sunday"]) {
+      toggleEditorWeekday(editorHooks, props, day);
+    }
+
+    await submitEditorForm(editorHooks, props);
+
+    expect(harness.updateAdminCourt).toHaveBeenCalledTimes(1);
+    expect(harness.updateAdminCourt).toHaveBeenCalledWith(
+      "17",
+      expect.objectContaining({
+        operating_days: ["Tuesday", "Saturday", "Sunday"],
+      }),
+    );
     expect(harness.createAdminCourt).not.toHaveBeenCalled();
   });
 
@@ -617,6 +685,7 @@ describe("Admin Court Management creation workflow", () => {
       amenities: ["Parking", "Lighting"],
       opening_time: "07:30",
       closing_time: "21:00",
+      operating_days: ["Monday"],
     };
     expect(harness.createAdminCourt).toHaveBeenCalledTimes(1);
     expect(harness.createAdminCourt).toHaveBeenCalledWith(expectedPayload);
@@ -642,6 +711,27 @@ describe("Admin Court Management creation workflow", () => {
     expect(textContent(tree)).toContain("Court created successfully.");
     expect(textContent(tree)).toContain("New Harbor Court");
     expect(harness.getAdminCourts).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends POST weekdays in Monday-to-Sunday order after unordered checkbox selections", async () => {
+    await loadCourts(managementHooks);
+    const { props } = await openCreationEditor(managementHooks);
+    fillEditor(editorHooks, props);
+
+    toggleEditorWeekday(editorHooks, props, "Monday");
+    for (const day of ["Sunday", "Wednesday", "Monday", "Friday"]) {
+      toggleEditorWeekday(editorHooks, props, day);
+    }
+
+    await submitEditorForm(editorHooks, props);
+
+    expect(harness.createAdminCourt).toHaveBeenCalledTimes(1);
+    expect(harness.createAdminCourt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operating_days: ["Monday", "Wednesday", "Friday", "Sunday"],
+      }),
+    );
+    expect(harness.updateAdminCourt).not.toHaveBeenCalled();
   });
 
   it("maps an available editor value to Laravel's available status", async () => {

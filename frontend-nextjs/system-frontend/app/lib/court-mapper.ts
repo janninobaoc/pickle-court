@@ -14,15 +14,23 @@ const weekdayNumbers: Record<string, number> = {
     saturday: 6,
 };
 
+export function sortOperatingDays(days: readonly number[]): number[] {
+    return [...days].sort(
+        (first, second) => ((first + 6) % 7) - ((second + 6) % 7),
+    );
+}
+
 export function mapOperatingDays(operatingDays: string[] | null): number[] {
     if (!operatingDays) {
         return [];
     }
 
-    return operatingDays.flatMap((day) => {
-        const weekdayNumber = weekdayNumbers[day.trim().toLowerCase()];
-        return weekdayNumber === undefined ? [] : [weekdayNumber];
-    });
+    return sortOperatingDays(
+        operatingDays.flatMap((day) => {
+            const weekdayNumber = weekdayNumbers[day.trim().toLowerCase()];
+            return weekdayNumber === undefined ? [] : [weekdayNumber];
+        }),
+    );
 }
 
 function mapOperatingTime(time: string | null): string {

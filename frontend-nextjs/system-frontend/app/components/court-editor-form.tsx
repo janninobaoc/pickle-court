@@ -20,6 +20,16 @@ const amenityOptions = [
   "Cafe nearby",
 ];
 
+const weekdayOptions = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+  { value: 0, label: "Sunday" },
+];
+
 type CourtFormValues = {
   name: string;
   description: string;
@@ -28,6 +38,7 @@ type CourtFormValues = {
   pricePerHour: string;
   openingTime: string;
   closingTime: string;
+  operatingDays: number[];
   amenities: string[];
   available: "true" | "false" | "";
 };
@@ -60,6 +71,7 @@ function initialValues(court: Court | null): CourtFormValues {
       pricePerHour: "",
       openingTime: "",
       closingTime: "",
+      operatingDays: [],
       amenities: [],
       available: "",
     };
@@ -73,6 +85,7 @@ function initialValues(court: Court | null): CourtFormValues {
     pricePerHour: String(court.pricePerHour),
     openingTime: court.openingTime,
     closingTime: court.closingTime,
+    operatingDays: [...(court.operatingDays ?? [])],
     amenities: [...court.amenities],
     available: String(court.available) as "true" | "false",
   };
@@ -90,6 +103,9 @@ function validate(values: CourtFormValues): CourtEditorFieldErrors {
   }
   if (!values.openingTime) errors.openingTime = "Opening time is required.";
   if (!values.closingTime) errors.closingTime = "Closing time is required.";
+  if (values.operatingDays.length === 0) {
+    errors.operatingDays = "Select at least one operating day.";
+  }
   if (values.openingTime && values.closingTime && values.closingTime <= values.openingTime) {
     errors.closingTime = "Closing time must be later than opening time.";
   }
@@ -127,6 +143,14 @@ export default function CourtEditorForm({
     updateField("amenities", nextAmenities);
   }
 
+  function toggleOperatingDay(day: number) {
+    const nextDays = values.operatingDays.includes(day)
+      ? values.operatingDays.filter((item) => item !== day)
+      : [...values.operatingDays, day];
+
+    updateField("operatingDays", nextDays);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting || isSubmitLocked || submissionLockRef.current) return;
@@ -142,16 +166,20 @@ export default function CourtEditorForm({
     submissionLockRef.current = true;
 
     try {
+      const operatingDayNames = weekdayOptions
+        .filter((day) => values.operatingDays.includes(day.value))
+        .map((day) => day.label)
+        .join(", ");
       await onSave({
         name: values.name.trim(),
         description: values.description.trim(),
         category,
         location: values.location.trim(),
         pricePerHour: Number(values.pricePerHour),
-        operatingHours: `Daily, ${formatTime(openingTime)} - ${formatTime(closingTime)}`,
+        operatingHours: `${operatingDayNames} · ${formatTime(openingTime)} - ${formatTime(closingTime)}`,
         openingTime,
         closingTime,
-        operatingDays: initialCourt?.operatingDays,
+        operatingDays: [...values.operatingDays],
         amenities: [...values.amenities],
         artwork: category === "Indoor" ? "indoor" : "outdoor",
         available: values.available === "true",
@@ -245,6 +273,39 @@ export default function CourtEditorForm({
               ))}
             </div>
             {fieldError("amenities")}
+          </fieldset>
+          <fieldset
+            className="sm:col-span-2"
+            disabled={isSubmitting || isSubmitLocked}
+            aria-invalid={Boolean(getFieldError("operatingDays"))}
+            aria-describedby={
+              getFieldError("operatingDays")
+                ? "court-operatingDays-error"
+                : undefined
+            }
+          >
+            <legend className="text-sm font-semibold text-foreground">
+              Operating Days — select at least one
+            </legend>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {weekdayOptions.map((day) => (
+                <label
+                  key={day.value}
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-background focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary"
+                >
+                  <input
+                    type="checkbox"
+                    checked={values.operatingDays.includes(day.value)}
+                    onChange={() => toggleOperatingDay(day.value)}
+                    className="size-4 rounded accent-primary"
+                  />
+                  {day.label}
+                </label>
+              ))}
+            </div>
+
+            {fieldError("operatingDays")}
           </fieldset>
         </div>
         <div className="sm:col-span-2">

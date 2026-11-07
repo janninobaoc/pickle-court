@@ -6,7 +6,7 @@ import type { Court } from "../types/court";
 import { formatPeso } from "../lib/booking-utils";
 import Button from "./button";
 import CourtEditorForm from "./court-editor-form";
-import { mapApiCourt } from "../lib/court-mapper";
+import { mapApiCourt, sortOperatingDays } from "../lib/court-mapper";
 import { useAuth } from "@/contexts/auth-context";
 import {
   AdminCourtsApiError,
@@ -33,6 +33,7 @@ const apiToEditorField: Record<string, keyof CourtEditorFieldErrors> = {
   amenities: "amenities",
   opening_time: "openingTime",
   closing_time: "closingTime",
+  operating_days: "operatingDays",
 };
 
 function mapValidationErrors(errors: AdminCourtsApiError["errors"]) {
@@ -51,6 +52,16 @@ function mapValidationErrors(errors: AdminCourtsApiError["errors"]) {
   return { fieldErrors, message: messages.join(" ") };
 }
 
+const weekdayNames = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
 function mapEditorChangesToPayload(changes: CourtChanges): CreateAdminCourtPayload {
   return {
     name: changes.name,
@@ -62,6 +73,9 @@ function mapEditorChangesToPayload(changes: CourtChanges): CreateAdminCourtPaylo
     amenities: changes.amenities,
     opening_time: changes.openingTime,
     closing_time: changes.closingTime,
+    operating_days: sortOperatingDays(changes.operatingDays ?? []).map(
+      (day) => weekdayNames[day],
+    ),
   };
 }
 

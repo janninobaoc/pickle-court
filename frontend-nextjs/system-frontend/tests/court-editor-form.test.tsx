@@ -56,10 +56,10 @@ const validSubmittedValues: Omit<Court, "id"> = {
   pricePerHour: 325,
   location: "Cebu Harbor",
   amenities: ["Parking"],
-  operatingHours: "Daily, 7:30 AM - 9:00 PM",
+  operatingHours: "Monday · 7:30 AM - 9:00 PM",
   openingTime: "07:30",
   closingTime: "21:00",
-  operatingDays: undefined,
+  operatingDays: [1],
   artwork: "outdoor",
   image: undefined,
   available: false,
@@ -160,6 +160,32 @@ function fillValidForm(hooks: HookHarness, props: FormProps) {
   (toggleAmenity as () => void)();
   tree = renderForm(hooks, props);
 
+  const mondayLabel = findElement(
+    tree,
+    (element) =>
+      element.type === "label" &&
+      textContent(element).trim() === "Monday",
+  );
+  if (!mondayLabel) throw new Error("Expected the Monday label.");
+
+  const mondayCheckbox = findElement(
+    mondayLabel,
+    (element) =>
+      element.type === "input" &&
+      propsOf(element).type === "checkbox",
+  );
+  if (!mondayCheckbox) throw new Error("Expected the Monday checkbox.");
+
+  if (propsOf(mondayCheckbox).checked !== true) {
+    const selectMonday = propsOf(mondayCheckbox).onChange;
+    if (typeof selectMonday !== "function") {
+      throw new Error("Expected the Monday checkbox handler.");
+    }
+
+    (selectMonday as () => void)();
+    tree = renderForm(hooks, props);
+  }
+
   const statusChange = propsOf(findField(tree, "court-status")).onChange;
   if (typeof statusChange !== "function") throw new Error("Expected the availability change handler.");
   (statusChange as (event: { target: { value: string } }) => void)({
@@ -255,7 +281,18 @@ describe("CourtEditorForm", () => {
     expect(propsOf(findField(tree, "court-closing-time")).value).toBe("22:00");
     expect(propsOf(findField(tree, "court-status")).value).toBe("true");
     expect(textContent(findSubmitButton(tree))).toContain("Save Changes");
-    const checkboxes = allElements(tree).filter((element) => propsOf(element).type === "checkbox");
+    const amenitiesFieldset = findElement(
+      tree,
+      (element) =>
+        element.type === "fieldset" &&
+        allElements(element.props.children).some(
+          (child) => child.type === "legend" && textContent(child).trim() === "Amenities",
+        ),
+    );
+    if (!amenitiesFieldset) throw new Error("Expected the Amenities fieldset.");
+    const checkboxes = allElements(amenitiesFieldset).filter(
+      (element) => propsOf(element).type === "checkbox",
+    );
     expect(checkboxes.filter((element) => propsOf(element).checked === true)).toHaveLength(2);
   });
 
